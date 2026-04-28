@@ -47,9 +47,10 @@ export async function GET(req: NextRequest) {
       ? resampleBars(bars, config.resampleFactor)
       : bars;
     const retMap = computeReturns(processedBars);
-    if (retMap.size >= 10) {
+    if (retMap.size >= 2) {
       returnMaps.set(ticker, retMap);
     } else {
+      console.warn(`[route] ${ticker}: only ${retMap.size} return(s), skipping`);
       skipped.push(ticker);
     }
   }
@@ -57,9 +58,16 @@ export async function GET(req: NextRequest) {
   // Only include tickers that have sufficient data
   const availableTickers = tickers.filter(t => returnMaps.has(t));
 
+  console.log(`[route] ${availableTickers.length} tickers available for matrix`);
+
   if (availableTickers.length < 2) {
     return NextResponse.json(
-      { error: 'Insufficient data to compute correlations', skipped },
+      {
+        error: 'Insufficient data to compute correlations',
+        skipped,
+        available: availableTickers,
+        hint: 'Check server logs for per-ticker fetch errors',
+      },
       { status: 502 },
     );
   }
