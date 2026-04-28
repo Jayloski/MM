@@ -15,6 +15,29 @@ const HEADERS = {
 const BATCH_SIZE = 5;
 const BATCH_DELAY_MS = 600;
 
+/**
+ * Normalise a Unix timestamp to a string key that is identical for the same
+ * bar across different asset classes regardless of their intraday offset.
+ *
+ * Daily  → "2024-01-15"          (date only — stable across timezones)
+ * 60m    → "2024-01-15T14"       (hour bucket)
+ * 15m    → "2024-01-15T14:30"    (15-min bucket, rounded down)
+ * 5m     → "2024-01-15T14:30"    (5-min bucket, rounded down)
+ */
+function normaliseTimestamp(unixSec: number, interval: string): string {
+  const d = new Date(unixSec * 1000);
+  const yyyy = d.getUTCFullYear();
+  const mm   = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const dd   = String(d.getUTCDate()).padStart(2, '0');
+  if (interval === '1d') return `${yyyy}-${mm}-${dd}`;
+  const hh   = String(d.getUTCHours()).padStart(2, '0');
+  if (interval === '60m') return `${yyyy}-${mm}-${dd}T${hh}`;
+  const min  = d.getUTCMinutes();
+  const step = interval === '15m' ? 15 : 5;
+  const minBucket = String(Math.floor(min / step) * step).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}T${hh}:${minBucket}`;
+}
+
 function sleep(ms: number) {
   return new Promise<void>(resolve => setTimeout(resolve, ms));
 }
@@ -95,7 +118,7 @@ async function fetchOneTicker(
     const close = adjCloses[i] ?? closes[i];
     if (close != null && isFinite(close) && close > 0) {
       bars.push({
-        date: new Date(timestamps[i] * 1000).toISOString(),
+        date: normaliseTimestamp(timestamps[i], config.yfInterval),
         close,
       });
     }
