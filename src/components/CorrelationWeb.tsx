@@ -117,16 +117,15 @@ export default function CorrelationWeb({ data, threshold }: Props) {
     nodeEl.append('title').text(d => d.label);
 
     // Drag behaviour
+    // NOTE: event.sourceEvent.currentTarget is null after DOM dispatch, so we
+    // change document.body cursor instead — also prevents flicker when dragging fast.
     const drag = d3
       .drag<SVGGElement, WebNode>()
       .on('start', (event, d) => {
         if (!event.active) simulation.alphaTarget(0.3).restart();
         d.fx = d.x;
         d.fy = d.y;
-        d3.select<SVGGElement, WebNode>(event.sourceEvent.currentTarget as SVGGElement).attr(
-          'cursor',
-          'grabbing',
-        );
+        document.body.style.cursor = 'grabbing';
       })
       .on('drag', (event, d) => {
         d.fx = event.x;
@@ -136,10 +135,7 @@ export default function CorrelationWeb({ data, threshold }: Props) {
         if (!event.active) simulation.alphaTarget(0);
         d.fx = null;
         d.fy = null;
-        d3.select<SVGGElement, WebNode>(event.sourceEvent.currentTarget as SVGGElement).attr(
-          'cursor',
-          'grab',
-        );
+        document.body.style.cursor = '';
       });
 
     nodeEl.call(drag as d3.DragBehavior<SVGGElement, WebNode, unknown>);
