@@ -13,8 +13,7 @@
     "next": "^15.3.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "server-only": "^0.0.1",
-    "yahoo-finance2": "^2.13.3"
+    "server-only": "^0.0.1"
   },
   "devDependencies": {
     "@types/d3": "^7.4.3",
