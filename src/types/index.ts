@@ -92,3 +92,31 @@ export interface HistoryResponse {
   points: HistoryPoint[];
   windowBars: number;
 }
+
+// ── Divergence scanner ────────────────────────────────────────────────────────
+
+export interface DivergencePair {
+  leaderTicker: string;
+  laggerTicker: string;
+  leaderLabel: string;
+  laggerLabel: string;
+  leaderAssetClass: AssetClass;
+  laggerAssetClass: AssetClass;
+  leaderSubGroup: string;
+  laggerSubGroup: string;
+  correlation: number;
+  spreadZ: number;
+  leaderRecentPct: number;
+  laggerRecentPct: number;
+  followThroughProb: number | null;
+  sampleCount: number;
+  direction: 'long' | 'short';
+}
+
+export interface DivergenceResponse {
+  pairs: DivergencePair[];
+  timeframe: Timeframe;
+  shortWindow: number;
+  forwardBars: number;
+  fetchedAt: string;
+}

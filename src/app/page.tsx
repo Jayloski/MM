@@ -6,6 +6,7 @@ import TimeframeSelector from '@/components/TimeframeSelector';
 import AssetClassFilter from '@/components/AssetClassFilter';
 import ThresholdSlider from '@/components/ThresholdSlider';
 import CorrelationHistory from '@/components/CorrelationHistory';
+import DivergenceScanner from '@/components/DivergenceScanner';
 import type {
   AssetClass,
   CorrelationResponse,
@@ -256,6 +257,9 @@ export default function HomePage() {
                 />
               )}
             </section>
+
+            {/* ── Divergence Scanner ───────────────────────────────────── */}
+            <DivergenceScanner timeframe={timeframe} activeClasses={activeClasses} />
 
             {/* ── Correlation Web ───────────────────────────────────────── */}
             <section>
