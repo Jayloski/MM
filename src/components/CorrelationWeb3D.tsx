@@ -84,7 +84,16 @@ export default function CorrelationWeb3D({ data, threshold }: Props) {
     let rafId = 0;
     let disposed = false;
 
-    // Named handlers so they can be removed on cleanup
+    // Camera + drag state hoisted so mouseMoveGlobal can close over them
+    let camRadius = 480;
+    let camTheta  = 0;
+    let camPhi    = Math.PI / 3;
+    let isDragging = false;
+    let lastX = 0;
+    let lastY = 0;
+    // Set to real updateCamera once Three.js loads
+    const cb = { updateCamera: () => {} };
+
     const mouseMoveGlobal = (e: MouseEvent) => {
       if (!isDragging) return;
       const dx = e.clientX - lastX;
@@ -93,13 +102,9 @@ export default function CorrelationWeb3D({ data, threshold }: Props) {
       camPhi = Math.max(0.15, Math.min(Math.PI - 0.15, camPhi + dy * 0.007));
       lastX = e.clientX;
       lastY = e.clientY;
-      updateCamera();
+      cb.updateCamera();
     };
     const mouseUpGlobal = () => { isDragging = false; };
-
-    let isDragging = false;
-    let lastX = 0;
-    let lastY = 0;
 
     (async () => {
       const THREE = await import('three');
@@ -140,9 +145,6 @@ export default function CorrelationWeb3D({ data, threshold }: Props) {
       const scene = new THREE.Scene();
       scene.background = new THREE.Color(0x0f1117);
 
-      let camRadius = 480;
-      let camTheta  = 0;
-      let camPhi    = Math.PI / 3;
       const camera  = new THREE.PerspectiveCamera(55, W / H, 1, 5000);
 
       function updateCamera() {
@@ -153,6 +155,7 @@ export default function CorrelationWeb3D({ data, threshold }: Props) {
         );
         camera.lookAt(0, 0, 0);
       }
+      cb.updateCamera = updateCamera;
       updateCamera();
 
       const renderer = new THREE.WebGLRenderer({ antialias: true });
