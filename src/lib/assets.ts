@@ -103,18 +103,24 @@ export const TIMEFRAME_CONFIGS: Record<Timeframe, TimeframeConfig> = {
     lookbackBars: 200,
     fetchDays: 7,
     label: '5 Min',
+    refreshIntervalMs:  60_000,   // 1 min
+    cacheTtlSeconds:        60,
   },
   '15m': {
     yfInterval: '15m',
     lookbackBars: 200,
     fetchDays: 14,
     label: '15 Min',
+    refreshIntervalMs:  90_000,   // 1.5 min
+    cacheTtlSeconds:        90,
   },
   '1h': {
     yfInterval: '60m',
     lookbackBars: 200,
     fetchDays: 60,
     label: '1 Hour',
+    refreshIntervalMs: 300_000,   // 5 min
+    cacheTtlSeconds:       300,
   },
   '4h': {
     yfInterval: '60m',
@@ -122,12 +128,16 @@ export const TIMEFRAME_CONFIGS: Record<Timeframe, TimeframeConfig> = {
     lookbackBars: 200,
     fetchDays: 120,
     label: '4 Hour',
+    refreshIntervalMs: 900_000,   // 15 min
+    cacheTtlSeconds:       900,
   },
   '1d': {
     yfInterval: '1d',
     lookbackBars: 252,
     fetchDays: 400,
     label: 'Daily',
+    refreshIntervalMs: 1_800_000, // 30 min
+    cacheTtlSeconds:      1_800,
   },
 };
 

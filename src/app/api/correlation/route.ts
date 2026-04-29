@@ -9,7 +9,8 @@ import {
 } from '@/lib/correlation';
 import type { Timeframe, AssetClass, CorrelationResponse } from '@/types';
 
-export const revalidate = 300; // 5-minute ISR cache
+// No static revalidate — Cache-Control is set dynamically per timeframe below
+export const dynamic = 'force-dynamic';
 
 const VALID_TIMEFRAMES = new Set<Timeframe>(['5m', '15m', '1h', '4h', '1d']);
 const VALID_CLASSES = new Set<AssetClass>(ALL_ASSET_CLASSES);
@@ -102,5 +103,10 @@ export async function GET(req: NextRequest) {
     skipped,
   };
 
-  return NextResponse.json(response);
+  const ttl = config.cacheTtlSeconds;
+  return NextResponse.json(response, {
+    headers: {
+      'Cache-Control': `public, s-maxage=${ttl}, stale-while-revalidate=${ttl * 2}`,
+    },
+  });
 }

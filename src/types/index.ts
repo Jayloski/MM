@@ -38,6 +38,10 @@ export interface TimeframeConfig {
   /** Calendar days to fetch from Yahoo Finance */
   fetchDays: number;
   label: string;
+  /** How often the client should auto-refresh (ms) */
+  refreshIntervalMs: number;
+  /** Cache-Control max-age sent by the API route (seconds) */
+  cacheTtlSeconds: number;
 }
 
 export interface PriceBar {
