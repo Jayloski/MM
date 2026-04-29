@@ -6,6 +6,7 @@ import TimeframeSelector from '@/components/TimeframeSelector';
 import AssetClassFilter from '@/components/AssetClassFilter';
 import ThresholdSlider from '@/components/ThresholdSlider';
 import CorrelationHistory from '@/components/CorrelationHistory';
+import DivergenceScanner from '@/components/DivergenceScanner';
 import type {
   AssetClass,
   CorrelationResponse,
@@ -110,16 +111,10 @@ export default function HomePage() {
     return () => { if (elapsedTimerRef.current) clearInterval(elapsedTimerRef.current); };
   }, [lastFetched]);
 
-  // ── History fetch (triggered by heatmap cell click) ────────────────────────
-  const handleCellClick = useCallback(
-    async (a: string, b: string, r: number | null) => {
-      if (!data) return;
-      setHistory({
-        a, b,
-        aLabel: data.labels[a] ?? a,
-        bLabel: data.labels[b] ?? b,
-        currentR: r,
-      });
+  // ── History fetch ─────────────────────────────────────────────────────────
+  const openHistory = useCallback(
+    async (a: string, b: string, aLabel: string, bLabel: string, currentR: number | null = null) => {
+      setHistory({ a, b, aLabel, bLabel, currentR });
       setHistoryPoints([]);
       setHistoryLoading(true);
       try {
@@ -135,7 +130,16 @@ export default function HomePage() {
         setHistoryLoading(false);
       }
     },
-    [data, timeframe],
+    [timeframe],
+  );
+
+  // Called by heatmap cell clicks (has live r value from the matrix)
+  const handleCellClick = useCallback(
+    (a: string, b: string, r: number | null) => {
+      if (!data) return;
+      openHistory(a, b, data.labels[a] ?? a, data.labels[b] ?? b, r);
+    },
+    [data, openHistory],
   );
 
   // ── Staleness indicator ───────────────────────────────────────────────────
@@ -291,6 +295,13 @@ export default function HomePage() {
                 <CorrelationWeb3D data={data} threshold={threshold} />
               )}
             </section>
+
+            {/* ── Divergence Scanner ────────────────────────────────────── */}
+            <DivergenceScanner
+              timeframe={timeframe}
+              activeClasses={activeClasses}
+              onPairClick={(a, b, aLabel, bLabel) => openHistory(a, b, aLabel, bLabel, null)}
+            />
           </>
         )}
       </main>
