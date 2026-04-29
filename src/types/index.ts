@@ -38,6 +38,10 @@ export interface TimeframeConfig {
   /** Calendar days to fetch from Yahoo Finance */
   fetchDays: number;
   label: string;
+  /** How often the client should auto-refresh (ms) */
+  refreshIntervalMs: number;
+  /** Cache-Control max-age sent by the API route (seconds) */
+  cacheTtlSeconds: number;
 }
 
 export interface PriceBar {
@@ -72,4 +76,19 @@ export interface WebLink extends SimulationLinkDatum<WebNode> {
   target: string | WebNode;
   r: number;
   absR: number;
+}
+
+// ── History (rolling correlation) ─────────────────────────────────────────────
+
+export interface HistoryPoint {
+  date: string;
+  r: number;
+}
+
+export interface HistoryResponse {
+  a: string;
+  b: string;
+  timeframe: Timeframe;
+  points: HistoryPoint[];
+  windowBars: number;
 }
