@@ -60,6 +60,36 @@ export interface CorrelationResponse {
   skipped: string[];
 }
 
+export interface DivergenceRow {
+  tickerA: string;
+  tickerB: string;
+  labelA: string;
+  labelB: string;
+  corrBaseline: number;
+  moverTicker: string;
+  moverLabel: string;
+  moverReturn: number;
+  moverMomZ: number;
+  holdoutTicker: string;
+  holdoutLabel: string;
+  holdoutReturn: number;
+  holdoutMomZ: number;
+  spreadZ: number;
+  sampleN: number;
+  revertPct: number | null;
+  lagPct: number | null;
+}
+
+export interface DivergenceResponse {
+  rows: DivergenceRow[];
+  baseBars: number;
+  momBars: number;
+  corrThreshold: number;
+  timeframe: Timeframe;
+  fetchedAt: string;
+  skipped: string[];
+}
+
 export interface WebNode extends SimulationNodeDatum {
   id: string;
   label: string;

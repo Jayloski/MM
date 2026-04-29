@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import TimeframeSelector from '@/components/TimeframeSelector';
 import AssetClassFilter from '@/components/AssetClassFilter';
 import ThresholdSlider from '@/components/ThresholdSlider';
-import type { AssetClass, CorrelationResponse, Timeframe } from '@/types';
+import type { AssetClass, CorrelationResponse, DivergenceResponse, Timeframe } from '@/types';
 import { ALL_ASSET_CLASSES } from '@/lib/assets';
 
 // Dynamically import heavy D3 components — no SSR
@@ -16,6 +16,10 @@ const CorrelationHeatmap = dynamic(() => import('@/components/CorrelationHeatmap
 const CorrelationWeb = dynamic(() => import('@/components/CorrelationWeb'), {
   ssr: false,
   loading: () => <SkeletonBlock height={600} />,
+});
+const DivergenceTable = dynamic(() => import('@/components/DivergenceTable'), {
+  ssr: false,
+  loading: () => <SkeletonBlock height={200} />,
 });
 
 function SkeletonBlock({ height }: { height: number }) {
@@ -34,30 +38,42 @@ export default function HomePage() {
   );
   const [threshold, setThreshold] = useState(0.35);
   const [data, setData] = useState<CorrelationResponse | null>(null);
+  const [divData, setDivData] = useState<DivergenceResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [divLoading, setDivLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = useCallback(
     async (tf: Timeframe, classes: Set<AssetClass>) => {
+      const params = new URLSearchParams({
+        timeframe: tf,
+        classes: Array.from(classes).join(','),
+      });
+
       setLoading(true);
+      setDivLoading(true);
       setError(null);
-      try {
-        const params = new URLSearchParams({
-          timeframe: tf,
-          classes: Array.from(classes).join(','),
-        });
-        const res = await fetch(`/api/correlation?${params}`);
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          throw new Error(body.error ?? `HTTP ${res.status}`);
-        }
-        const json: CorrelationResponse = await res.json();
-        setData(json);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Unknown error');
-      } finally {
-        setLoading(false);
+
+      // Fire both requests in parallel
+      const [corrRes, divRes] = await Promise.allSettled([
+        fetch(`/api/correlation?${params}`),
+        fetch(`/api/divergence?${params}`),
+      ]);
+
+      if (corrRes.status === 'fulfilled' && corrRes.value.ok) {
+        setData(await corrRes.value.json() as CorrelationResponse);
+      } else {
+        const body = corrRes.status === 'fulfilled'
+          ? await corrRes.value.json().catch(() => ({}))
+          : {};
+        setError(body.error ?? 'Failed to load correlation data');
       }
+      setLoading(false);
+
+      if (divRes.status === 'fulfilled' && divRes.value.ok) {
+        setDivData(await divRes.value.json() as DivergenceResponse);
+      }
+      setDivLoading(false);
     },
     [],
   );
@@ -146,6 +162,24 @@ export default function HomePage() {
                 }`}
               >
                 <CorrelationHeatmap data={data} />
+              </div>
+            </section>
+
+            {/* Divergence / Spread Analysis */}
+            <section>
+              <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-500">
+                Momentum Divergence
+                <span className="ml-3 font-normal normal-case text-slate-600">
+                  — correlated pairs where one asset is outpacing the other (20-bar vs 60-bar baseline)
+                </span>
+              </h2>
+              <div
+                className={`rounded-lg border border-surface-border bg-surface-raised p-4 transition-opacity ${
+                  divLoading ? 'opacity-50' : 'opacity-100'
+                }`}
+              >
+                {divLoading && !divData && <SkeletonBlock height={120} />}
+                {divData && <DivergenceTable data={divData} />}
               </div>
             </section>
 
