@@ -73,3 +73,29 @@ export interface WebLink extends SimulationLinkDatum<WebNode> {
   r: number;
   absR: number;
 }
+
+export interface DivergencePair {
+  aLabel: string;
+  bLabel: string;
+  longR: number;
+  cumA: number;
+  cumB: number;
+  momentumZA: number;
+  momentumZB: number;
+  spreadZ: number;
+  moverIsA?: boolean;
+  continuationRate?: number;
+  followRate?: number;
+  sampleCount?: number;
+}
+
+export interface DivergenceResponse {
+  pairs: DivergencePair[];
+  shortWindow: number;
+  longWindow: number;
+  timeframe: Timeframe;
+  classes: string[];
+  minLongR: number;
+  fetchedAt: string;
+  skipped: string[];
+}
