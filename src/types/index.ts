@@ -77,3 +77,18 @@ export interface WebLink extends SimulationLinkDatum<WebNode> {
   r: number;
   absR: number;
 }
+
+// ── History (rolling correlation) ─────────────────────────────────────────────
+
+export interface HistoryPoint {
+  date: string;
+  r: number;
+}
+
+export interface HistoryResponse {
+  a: string;
+  b: string;
+  timeframe: Timeframe;
+  points: HistoryPoint[];
+  windowBars: number;
+}

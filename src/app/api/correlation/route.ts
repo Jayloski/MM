@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ASSETS, TIMEFRAME_CONFIGS, ALL_ASSET_CLASSES } from '@/lib/assets';
 import { fetchPrices } from '@/lib/fetchPrices';
+import { cacheGet, cacheSet } from '@/lib/cache';
 import {
   computeReturns,
   resampleBars,
@@ -9,7 +10,6 @@ import {
 } from '@/lib/correlation';
 import type { Timeframe, AssetClass, CorrelationResponse } from '@/types';
 
-// No static revalidate — Cache-Control is set dynamically per timeframe below
 export const dynamic = 'force-dynamic';
 
 const VALID_TIMEFRAMES = new Set<Timeframe>(['5m', '15m', '1h', '4h', '1d']);
@@ -18,11 +18,9 @@ const VALID_CLASSES = new Set<AssetClass>(ALL_ASSET_CLASSES);
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
 
-  // Parse & validate timeframe
   const tfParam = (searchParams.get('timeframe') ?? '1d') as Timeframe;
   const timeframe: Timeframe = VALID_TIMEFRAMES.has(tfParam) ? tfParam : '1d';
 
-  // Parse & validate asset classes
   const classParam = searchParams.get('classes');
   const requestedClasses: AssetClass[] = classParam
     ? (classParam.split(',').filter(c => VALID_CLASSES.has(c as AssetClass)) as AssetClass[])
@@ -33,15 +31,25 @@ export async function GET(req: NextRequest) {
   }
 
   const config = TIMEFRAME_CONFIGS[timeframe];
+  const ttl = config.cacheTtlSeconds;
+  const cacheHeaders = {
+    'Cache-Control': `public, s-maxage=${ttl}, stale-while-revalidate=${ttl * 2}`,
+  };
 
-  // Filter assets by requested classes
+  // ── Redis cache check ────────────────────────────────────────────────────
+  const cacheKey = `corr:${timeframe}:${[...requestedClasses].sort().join(',')}`;
+  const cached = await cacheGet(cacheKey);
+  if (cached) {
+    console.log(`[route] cache hit for ${cacheKey}`);
+    return NextResponse.json(JSON.parse(cached), { headers: cacheHeaders });
+  }
+
+  // ── Fetch & compute ──────────────────────────────────────────────────────
   const assets = ASSETS.filter(a => requestedClasses.includes(a.assetClass));
   const tickers = assets.map(a => a.ticker);
 
-  // Fetch price bars
   const { history, skipped } = await fetchPrices(tickers, config);
 
-  // Build return maps (applying resampling for 4h)
   const returnMaps = new Map<string, Map<string, number>>();
   for (const [ticker, bars] of Object.entries(history)) {
     const processedBars = config.resampleFactor
@@ -56,9 +64,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Only include tickers that have sufficient data
   const availableTickers = tickers.filter(t => returnMaps.has(t));
-
   console.log(`[route] ${availableTickers.length} tickers available for matrix`);
 
   if (availableTickers.length < 2) {
@@ -73,11 +79,9 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // Align returns and build matrix
   const aligned = alignReturns(returnMaps, config.lookbackBars);
   const matrix = buildCorrelationMatrix(availableTickers, aligned);
 
-  // Build lookup maps
   const assetMap = new Map(assets.map(a => [a.ticker, a]));
   const labels: Record<string, string> = {};
   const assetClasses: Record<string, AssetClass> = {};
@@ -103,10 +107,8 @@ export async function GET(req: NextRequest) {
     skipped,
   };
 
-  const ttl = config.cacheTtlSeconds;
-  return NextResponse.json(response, {
-    headers: {
-      'Cache-Control': `public, s-maxage=${ttl}, stale-while-revalidate=${ttl * 2}`,
-    },
-  });
+  // ── Store in Redis ───────────────────────────────────────────────────────
+  await cacheSet(cacheKey, JSON.stringify(response), ttl);
+
+  return NextResponse.json(response, { headers: cacheHeaders });
 }

@@ -5,7 +5,13 @@ import dynamic from 'next/dynamic';
 import TimeframeSelector from '@/components/TimeframeSelector';
 import AssetClassFilter from '@/components/AssetClassFilter';
 import ThresholdSlider from '@/components/ThresholdSlider';
-import type { AssetClass, CorrelationResponse, Timeframe } from '@/types';
+import CorrelationHistory from '@/components/CorrelationHistory';
+import type {
+  AssetClass,
+  CorrelationResponse,
+  HistoryPoint,
+  Timeframe,
+} from '@/types';
 import { ALL_ASSET_CLASSES, TIMEFRAME_CONFIGS } from '@/lib/assets';
 
 const CorrelationHeatmap = dynamic(() => import('@/components/CorrelationHeatmap'), {
@@ -13,6 +19,10 @@ const CorrelationHeatmap = dynamic(() => import('@/components/CorrelationHeatmap
   loading: () => <SkeletonBlock height={500} />,
 });
 const CorrelationWeb = dynamic(() => import('@/components/CorrelationWeb'), {
+  ssr: false,
+  loading: () => <SkeletonBlock height={600} />,
+});
+const CorrelationWeb3D = dynamic(() => import('@/components/CorrelationWeb3D'), {
   ssr: false,
   loading: () => <SkeletonBlock height={600} />,
 });
@@ -28,19 +38,37 @@ function formatElapsed(seconds: number): string {
   return `${Math.floor(seconds / 3600)}h ago`;
 }
 
+type WebMode = '2d' | '3d';
+
+interface HistoryState {
+  a: string;
+  b: string;
+  aLabel: string;
+  bLabel: string;
+  currentR: number | null;
+}
+
 export default function HomePage() {
-  const [timeframe, setTimeframe]       = useState<Timeframe>('1d');
+  const [timeframe, setTimeframe]         = useState<Timeframe>('1d');
   const [activeClasses, setActiveClasses] = useState<Set<AssetClass>>(new Set(ALL_ASSET_CLASSES));
-  const [threshold, setThreshold]       = useState(0.35);
-  const [data, setData]                 = useState<CorrelationResponse | null>(null);
-  const [loading, setLoading]           = useState(false);
-  const [error, setError]               = useState<string | null>(null);
-  const [lastFetched, setLastFetched]   = useState<Date | null>(null);
-  const [elapsed, setElapsed]           = useState(0);
+  const [threshold, setThreshold]         = useState(0.35);
+  const [webMode, setWebMode]             = useState<WebMode>('2d');
+  const [data, setData]                   = useState<CorrelationResponse | null>(null);
+  const [loading, setLoading]             = useState(false);
+  const [error, setError]                 = useState<string | null>(null);
+  const [lastFetched, setLastFetched]     = useState<Date | null>(null);
+  const [elapsed, setElapsed]             = useState(0);
+
+  // History panel state
+  const [history, setHistory]             = useState<HistoryState | null>(null);
+  const [historyPoints, setHistoryPoints] = useState<HistoryPoint[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyWindowBars, setHistoryWindowBars] = useState(30);
 
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const elapsedTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // ── Main data fetch ────────────────────────────────────────────────────────
   const fetchData = useCallback(async (tf: Timeframe, classes: Set<AssetClass>) => {
     setLoading(true);
     setError(null);
@@ -53,8 +81,7 @@ export default function HomePage() {
       }
       const json: CorrelationResponse = await res.json();
       setData(json);
-      const now = new Date();
-      setLastFetched(now);
+      setLastFetched(new Date());
       setElapsed(0);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unknown error');
@@ -63,44 +90,63 @@ export default function HomePage() {
     }
   }, []);
 
-  // Initial fetch + re-fetch when controls change
   useEffect(() => {
     fetchData(timeframe, activeClasses);
   }, [timeframe, activeClasses, fetchData]);
 
-  // Auto-refresh timer — restarts whenever timeframe changes
   useEffect(() => {
     if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
     const intervalMs = TIMEFRAME_CONFIGS[timeframe].refreshIntervalMs;
-    refreshTimerRef.current = setInterval(() => {
-      fetchData(timeframe, activeClasses);
-    }, intervalMs);
-    return () => {
-      if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
-    };
+    refreshTimerRef.current = setInterval(() => fetchData(timeframe, activeClasses), intervalMs);
+    return () => { if (refreshTimerRef.current) clearInterval(refreshTimerRef.current); };
   }, [timeframe, activeClasses, fetchData]);
 
-  // Elapsed-seconds ticker — resets whenever lastFetched changes
   useEffect(() => {
     if (elapsedTimerRef.current) clearInterval(elapsedTimerRef.current);
     if (!lastFetched) return;
     elapsedTimerRef.current = setInterval(() => {
       setElapsed(Math.floor((Date.now() - lastFetched.getTime()) / 1000));
     }, 1000);
-    return () => {
-      if (elapsedTimerRef.current) clearInterval(elapsedTimerRef.current);
-    };
+    return () => { if (elapsedTimerRef.current) clearInterval(elapsedTimerRef.current); };
   }, [lastFetched]);
 
-  // Staleness: fraction of refresh interval elapsed
+  // ── History fetch (triggered by heatmap cell click) ────────────────────────
+  const handleCellClick = useCallback(
+    async (a: string, b: string, r: number | null) => {
+      if (!data) return;
+      setHistory({
+        a, b,
+        aLabel: data.labels[a] ?? a,
+        bLabel: data.labels[b] ?? b,
+        currentR: r,
+      });
+      setHistoryPoints([]);
+      setHistoryLoading(true);
+      try {
+        const params = new URLSearchParams({ a, b, timeframe });
+        const res = await fetch(`/api/correlation/history?${params}`);
+        if (!res.ok) throw new Error('History fetch failed');
+        const json = await res.json();
+        setHistoryPoints(json.points ?? []);
+        setHistoryWindowBars(json.windowBars ?? 30);
+      } catch {
+        setHistoryPoints([]);
+      } finally {
+        setHistoryLoading(false);
+      }
+    },
+    [data, timeframe],
+  );
+
+  // ── Staleness indicator ───────────────────────────────────────────────────
   const cfg = TIMEFRAME_CONFIGS[timeframe];
   const staleFraction = lastFetched
     ? Math.min(elapsed / (cfg.refreshIntervalMs / 1000), 1)
     : 0;
   const dotColor =
-    staleFraction < 0.5 ? '#34d399' :   // green
-    staleFraction < 0.85 ? '#f59e0b' :  // amber
-    '#f87171';                           // red
+    staleFraction < 0.5  ? '#34d399' :
+    staleFraction < 0.85 ? '#f59e0b' :
+    '#f87171';
 
   return (
     <div className="min-h-screen bg-surface text-slate-200">
@@ -118,7 +164,6 @@ export default function HomePage() {
             )}
           </div>
 
-          {/* Status + manual refresh */}
           <div className="flex items-center gap-3">
             {lastFetched && (
               <div className="flex items-center gap-1.5">
@@ -140,7 +185,6 @@ export default function HomePage() {
               title="Refresh now"
               className="rounded p-1 text-slate-500 transition-colors hover:text-slate-200 disabled:opacity-30"
             >
-              {/* Refresh icon */}
               <svg
                 className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`}
                 viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
@@ -188,23 +232,64 @@ export default function HomePage() {
 
         {data && (
           <>
-            <section>
+            {/* ── Heatmap ───────────────────────────────────────────────── */}
+            <section className="relative">
               <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-500">
                 Correlation Heatmap
               </h2>
-              <div className={`rounded-lg border border-surface-border bg-surface-raised p-4 transition-opacity ${loading ? 'opacity-50' : 'opacity-100'}`}>
-                <CorrelationHeatmap data={data} />
+              <div
+                className={`rounded-lg border border-surface-border bg-surface-raised p-4 transition-opacity ${loading ? 'opacity-50' : 'opacity-100'}`}
+              >
+                <CorrelationHeatmap data={data} onCellClick={handleCellClick} />
               </div>
+
+              {/* Rolling history panel */}
+              {history && (
+                <CorrelationHistory
+                  aLabel={history.aLabel}
+                  bLabel={history.bLabel}
+                  points={historyPoints}
+                  currentR={history.currentR}
+                  loading={historyLoading}
+                  windowBars={historyWindowBars}
+                  onClose={() => setHistory(null)}
+                />
+              )}
             </section>
 
+            {/* ── Correlation Web ───────────────────────────────────────── */}
             <section>
-              <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-500">
-                Correlation Web
-                <span className="ml-3 font-normal normal-case text-slate-600">
-                  — |r| ≥ {threshold.toFixed(2)} · drag · scroll to zoom · click node for details
+              <div className="mb-3 flex items-center gap-3">
+                <h2 className="text-xs font-semibold uppercase tracking-widest text-slate-500">
+                  Correlation Web
+                </h2>
+                <span className="text-xs text-slate-600">
+                  — |r| ≥ {threshold.toFixed(2)}
+                  {webMode === '2d' ? ' · drag · scroll to zoom · click node' : ' · drag · scroll to zoom · click node'}
                 </span>
-              </h2>
-              <CorrelationWeb data={data} threshold={threshold} />
+                {/* 2D / 3D toggle */}
+                <div className="ml-auto flex items-center rounded border border-surface-border p-0.5">
+                  {(['2d', '3d'] as WebMode[]).map(mode => (
+                    <button
+                      key={mode}
+                      onClick={() => setWebMode(mode)}
+                      className={`rounded px-3 py-0.5 text-xs font-semibold uppercase transition-colors ${
+                        webMode === mode
+                          ? 'bg-surface-border text-slate-200'
+                          : 'text-slate-500 hover:text-slate-300'
+                      }`}
+                    >
+                      {mode}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {webMode === '2d' ? (
+                <CorrelationWeb data={data} threshold={threshold} />
+              ) : (
+                <CorrelationWeb3D data={data} threshold={threshold} />
+              )}
             </section>
           </>
         )}
