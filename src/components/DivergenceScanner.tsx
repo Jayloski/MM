@@ -297,17 +297,27 @@ export default function DivergenceScanner({ timeframe, activeClasses, threshold,
                     <th className="px-4 py-2 text-left">#</th>
                     <th className="px-4 py-2 text-left">Pair</th>
                     <th className="px-4 py-2 text-right">Long r</th>
-                    <th className="px-4 py-2 text-right">A return</th>
-                    <th className="px-4 py-2 text-right">B return</th>
+                    <th className="px-4 py-2 text-left">Mover</th>
+                    <th className="px-4 py-2 text-left">Holdout</th>
                     <th className="px-4 py-2 text-right">Spread Z</th>
-                    <th className="px-4 py-2 text-center">Leading</th>
+                    <th className="px-4 py-2 text-center">Confirm %</th>
                   </tr>
                 </thead>
                 <tbody>
                   {data.pairs.map((pair, i) => {
                     const z = pair.spreadZ ?? 0;
-                    const leadLabel = Math.abs(z) < 0.3 ? 'Neutral' : z > 0 ? pair.aLabel : pair.bLabel;
-                    const leadColor = Math.abs(z) < 0.3 ? '#64748b' : z > 0 ? '#34d399' : '#f87171';
+                    const hasClearSignal = pair.moverIsA != null;
+                    const moverLabel   = pair.moverIsA !== false ? pair.aLabel : pair.bLabel;
+                    const holdoutLabel = pair.moverIsA !== false ? pair.bLabel : pair.aLabel;
+                    const moverCum     = pair.moverIsA !== false ? pair.cumA   : pair.cumB;
+                    const holdoutCum   = pair.moverIsA !== false ? pair.cumB   : pair.cumA;
+                    const moverMomZ    = pair.moverIsA !== false ? pair.momentumZA : pair.momentumZB;
+                    const holdoutMomZ  = pair.moverIsA !== false ? pair.momentumZB : pair.momentumZA;
+                    const moverColor   = (moverCum ?? 0) < 0 ? '#f87171' : '#34d399';
+
+                    const confirmPct = pair.continuationRate != null ? Math.round(pair.continuationRate * 100) : null;
+                    const revertPct  = pair.followRate       != null ? Math.round(pair.followRate       * 100) : null;
+                    const confirmColor = confirmPct == null ? '#64748b' : confirmPct >= 60 ? '#f59e0b' : confirmPct >= 40 ? '#fb923c' : '#64748b';
 
                     return (
                       <tr
@@ -324,32 +334,47 @@ export default function DivergenceScanner({ timeframe, activeClasses, threshold,
                           <span className="font-semibold text-slate-200">{pair.bLabel}</span>
                         </td>
                         <td className="px-4 py-2.5 text-right"><RCell value={pair.longR} /></td>
-                        <td className="px-4 py-2.5 text-right">
-                          {pair.cumA != null
-                            ? <><PctCell value={pair.cumA} />{pair.momentumZA != null && <MomentumArrow z={pair.momentumZA} />}</>
-                            : <span className="text-slate-600">—</span>}
+                        <td className="px-4 py-2.5">
+                          {hasClearSignal && moverCum != null ? (
+                            <span className="flex items-center gap-1">
+                              <span className="font-semibold text-[11px]" style={{ color: moverColor }}>{moverLabel}</span>
+                              <PctCell value={moverCum} />
+                              {moverMomZ != null && <MomentumArrow z={moverMomZ} />}
+                            </span>
+                          ) : (
+                            <span className="text-slate-600">—</span>
+                          )}
                         </td>
-                        <td className="px-4 py-2.5 text-right">
-                          {pair.cumB != null
-                            ? <><PctCell value={pair.cumB} />{pair.momentumZB != null && <MomentumArrow z={pair.momentumZB} />}</>
-                            : <span className="text-slate-600">—</span>}
+                        <td className="px-4 py-2.5">
+                          {hasClearSignal && holdoutCum != null ? (
+                            <span className="flex items-center gap-1">
+                              <span className="font-semibold text-[11px] text-slate-300">{holdoutLabel}</span>
+                              <PctCell value={holdoutCum} />
+                              {holdoutMomZ != null && <MomentumArrow z={holdoutMomZ} />}
+                            </span>
+                          ) : (
+                            <span className="text-slate-600">—</span>
+                          )}
                         </td>
                         <td className="px-4 py-2.5 text-right"><SpreadZBadge z={z} /></td>
                         <td className="px-4 py-2.5 text-center">
-                          <span
-                            className="rounded px-1.5 py-0.5 text-[10px] font-semibold"
-                            style={{ color: leadColor, backgroundColor: `${leadColor}18` }}
-                          >
-                            {leadLabel}
-                          </span>
-                          {pair.sampleCount != null && pair.followRate != null ? (
-                            <div className="mt-0.5 text-[10px] text-slate-500">
-                              {Math.round(pair.followRate * 100)}% revert
-                              {pair.laggardCatchRate != null && ` · ${Math.round(pair.laggardCatchRate * 100)}% lag`}
-                              <span className="ml-1 text-slate-600">({pair.sampleCount})</span>
+                          {confirmPct != null ? (
+                            <div>
+                              <span
+                                className="rounded px-1.5 py-0.5 font-mono text-[11px] font-semibold"
+                                style={{ color: confirmColor, backgroundColor: `${confirmColor}18` }}
+                              >
+                                {confirmPct}% confirm
+                              </span>
+                              {revertPct != null && (
+                                <div className="mt-0.5 text-[10px] text-slate-500">
+                                  {revertPct}% revert
+                                  <span className="ml-1 text-slate-600">({pair.sampleCount})</span>
+                                </div>
+                              )}
                             </div>
                           ) : (
-                            <div className="mt-0.5 text-[10px] text-slate-600">—</div>
+                            <span className="text-slate-600">—</span>
                           )}
                         </td>
                       </tr>

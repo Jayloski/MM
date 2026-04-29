@@ -118,12 +118,14 @@ export interface DivergencePair {
   cumA?: number;
   /** Spread mode: cumulative return of B over shortWindow (raw fraction) */
   cumB?: number;
-  /** Spread mode: fraction 0–1 of 1σ+ historical signals that reverted; undefined if < 3 samples */
+  /** Spread mode: fraction 0–1 of qualified signals where spread subsequently narrowed */
   followRate?: number;
-  /** Spread mode: of reversions, fraction where the laggard leg contributed more than the leader */
-  laggardCatchRate?: number;
-  /** Spread mode: number of historical 1σ+ signal instances used; undefined if < 3 */
+  /** Spread mode: fraction 0–1 of qualified signals where holdout confirmed mover's direction */
+  continuationRate?: number;
+  /** Spread mode: number of qualified historical signal instances used; undefined if < 3 */
   sampleCount?: number;
+  /** Spread mode: true = A is the mover; false = B is the mover; undefined = no qualified signal */
+  moverIsA?: boolean;
   /** Spread mode: A's own short-window momentum z-score vs its long-window baseline */
   momentumZA?: number;
   /** Spread mode: B's own short-window momentum z-score vs its long-window baseline */

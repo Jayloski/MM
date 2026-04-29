@@ -13,6 +13,7 @@ const VALID_CLASSES = new Set<AssetClass>(ALL_ASSET_CLASSES);
 const DEFAULT_SHORT = 20;
 const DEFAULT_LONG  = 60;
 const TOP_N = 30;
+const MIN_ABS_MOVE = 0.0025;
 
 function mean(arr: number[]): number {
   return arr.reduce((s, v) => s + v, 0) / arr.length;
@@ -141,42 +142,59 @@ export async function GET(req: NextRequest) {
         const denom_B = stdB * Math.sqrt(shortWindow);
         const momentumZB = denom_B > 0 ? (cumB - meanB * shortWindow) / denom_B : 0;
 
+        // ── Current-bar mover designation ────────────────────────────────
+        const absMomZA = Math.abs(momentumZA);
+        const absMomZB = Math.abs(momentumZB);
+        const aQualified = absMomZA >= 1.0 && Math.abs(cumA) >= MIN_ABS_MOVE;
+        const bQualified = absMomZB >= 1.0 && Math.abs(cumB) >= MIN_ABS_MOVE;
+        const moverIsA: boolean | undefined =
+          !aQualified && !bQualified ? undefined :
+          aQualified && bQualified ? absMomZA >= absMomZB : aQualified;
+
         // ── Historical follow-through ────────────────────────────────────
         const histLen   = Math.min(shared.length, 500);
         const histDates = shared.slice(-histLen);
-        let totalSignals = 0, totalReverts = 0, laggardCaught = 0;
+        let totalSignals = 0, leaderConfirmed = 0, totalReverts = 0;
 
         for (let k = longWindow; k <= histLen - shortWindow - 1; k += shortWindow) {
-          const baseDates  = histDates.slice(k - longWindow, k);
-          const spreadBase = baseDates.map(d => (retA.get(d) ?? 0) - (retB.get(d) ?? 0));
-          const mu_h = mean(spreadBase), std_h = std(spreadBase, mu_h);
-          if (std_h === 0) continue;
+          const baseDates = histDates.slice(k - longWindow, k);
+          const arrBaseA  = baseDates.map(d => retA.get(d) ?? 0);
+          const arrBaseB  = baseDates.map(d => retB.get(d) ?? 0);
+          const mAmu = mean(arrBaseA), mAstd = std(arrBaseA, mAmu);
+          const mBmu = mean(arrBaseB), mBstd = std(arrBaseB, mBmu);
+          const denomA = mAstd * Math.sqrt(shortWindow);
+          const denomB = mBstd * Math.sqrt(shortWindow);
 
-          const shortWinDates  = histDates.slice(k - shortWindow, k);
-          const cumSpreadShort = shortWinDates.reduce(
-            (s, d) => s + (retA.get(d) ?? 0) - (retB.get(d) ?? 0), 0,
-          );
-          const zAtK = (cumSpreadShort - mu_h * shortWindow) / (std_h * Math.sqrt(shortWindow));
-          if (Math.abs(zAtK) < 1.0) continue;
+          const shortWinDates = histDates.slice(k - shortWindow, k);
+          const cumAk = shortWinDates.reduce((s, d) => s + (retA.get(d) ?? 0), 0);
+          const cumBk = shortWinDates.reduce((s, d) => s + (retB.get(d) ?? 0), 0);
+
+          const momZA = denomA > 0 ? Math.abs((cumAk - mAmu * shortWindow) / denomA) : 0;
+          const momZB = denomB > 0 ? Math.abs((cumBk - mBmu * shortWindow) / denomB) : 0;
+
+          const aMoves = momZA >= 1.0 && Math.abs(cumAk) >= MIN_ABS_MOVE;
+          const bMoves = momZB >= 1.0 && Math.abs(cumBk) >= MIN_ABS_MOVE;
+          if (!aMoves && !bMoves) continue;
+
+          const aIsMover   = aMoves && bMoves ? momZA >= momZB : aMoves;
+          const moverCum   = aIsMover ? cumAk : cumBk;
+          const holdoutMomZ = aIsMover ? momZB : momZA;
+          if (holdoutMomZ > 0.5) continue;
           totalSignals++;
 
-          const nextDates     = histDates.slice(k, k + shortWindow);
-          const cumSpreadNext = nextDates.reduce(
-            (s, d) => s + (retA.get(d) ?? 0) - (retB.get(d) ?? 0), 0,
+          const nextDates = histDates.slice(k, k + shortWindow);
+          const holdoutNext = nextDates.reduce(
+            (s, d) => s + (aIsMover ? (retB.get(d) ?? 0) : (retA.get(d) ?? 0)), 0,
           );
-          const reverted = (zAtK > 0 && cumSpreadNext < 0) || (zAtK < 0 && cumSpreadNext > 0);
-          if (!reverted) continue;
-          totalReverts++;
+          if (Math.sign(holdoutNext) === Math.sign(moverCum)) leaderConfirmed++;
 
           const cumANext = nextDates.reduce((s, d) => s + (retA.get(d) ?? 0), 0);
           const cumBNext = nextDates.reduce((s, d) => s + (retB.get(d) ?? 0), 0);
-          const aContrib = zAtK > 0 ? -cumANext :  cumANext;
-          const bContrib = zAtK > 0 ?  cumBNext : -cumBNext;
-          if (bContrib > aContrib) laggardCaught++;
+          if (Math.abs(cumANext - cumBNext) < Math.abs(cumAk - cumBk)) totalReverts++;
         }
 
-        const followRate       = totalSignals >= 3 ? totalReverts  / totalSignals : undefined;
-        const laggardCatchRate = totalReverts  >  0 ? laggardCaught / totalReverts : undefined;
+        const continuationRate = totalSignals >= 3 ? leaderConfirmed / totalSignals : undefined;
+        const followRate       = totalSignals >= 3 ? totalReverts    / totalSignals : undefined;
         const sampleCount      = totalSignals >= 3 ? totalSignals : undefined;
 
         divergentPairs.push({
@@ -191,8 +209,9 @@ export async function GET(req: NextRequest) {
           cumB:       parseFloat(cumB.toFixed(6)),
           momentumZA: parseFloat(momentumZA.toFixed(4)),
           momentumZB: parseFloat(momentumZB.toFixed(4)),
+          moverIsA,
           followRate:       followRate       != null ? parseFloat(followRate.toFixed(4))       : undefined,
-          laggardCatchRate: laggardCatchRate != null ? parseFloat(laggardCatchRate.toFixed(4)) : undefined,
+          continuationRate: continuationRate != null ? parseFloat(continuationRate.toFixed(4)) : undefined,
           sampleCount,
         });
       }
