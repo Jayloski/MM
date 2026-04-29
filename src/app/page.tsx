@@ -257,10 +257,14 @@ export default function HomePage() {
                 />
               )}
             </section>
+          </>
+        )}
 
-            {/* ── Divergence Scanner ───────────────────────────────────── */}
-            <DivergenceScanner timeframe={timeframe} activeClasses={activeClasses} />
+        {/* ── Divergence Scanner — fetches independently ────────────── */}
+        <DivergenceScanner timeframe={timeframe} activeClasses={activeClasses} />
 
+        {data && (
+          <>
             {/* ── Correlation Web ───────────────────────────────────────── */}
             <section>
               <div className="mb-3 flex items-center gap-3">

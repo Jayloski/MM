@@ -193,12 +193,21 @@ export default function DivergenceScanner({ timeframe, activeClasses }: Props) {
         </button>
       </div>
 
-      <div className={`rounded-lg border border-surface-border bg-surface-raised transition-opacity ${loading ? 'opacity-50' : 'opacity-100'}`}>
+      <div className={`rounded-lg border border-surface-border bg-surface-raised transition-opacity ${loading && data ? 'opacity-50' : 'opacity-100'}`}>
+        {loading && !data && (
+          <div className="flex items-center gap-2 px-6 py-8 text-xs text-slate-600">
+            <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582M20 20v-5h-.581M5.635 19A9 9 0 104.583 9.582" />
+            </svg>
+            Scanning divergences across {54} instruments…
+          </div>
+        )}
+
         {error && (
           <div className="px-4 py-3 text-xs text-red-400">{error}</div>
         )}
 
-        {!error && pairs.length === 0 && !loading && (
+        {!loading && !error && pairs.length === 0 && data && (
           <div className="px-6 py-8 text-center text-sm text-slate-600">
             No active divergences at current threshold
             <div className="mt-1 text-xs text-slate-700">
