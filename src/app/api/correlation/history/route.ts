@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { TIMEFRAME_CONFIGS } from '@/lib/assets';
 import { fetchPrices } from '@/lib/fetchPrices';
-import { computeReturns, resampleBars, pearson } from '@/lib/correlation';
+import { computeReturns, resampleBars, filterSessionBars, pearson } from '@/lib/correlation';
 import { cacheGet, cacheSet } from '@/lib/cache';
 import type { Timeframe, HistoryResponse } from '@/types';
 
 export const dynamic = 'force-dynamic';
 
-// Rolling window in bars — enough to be meaningful but not so large that
-// there's no history to scroll through.
-const WINDOW_BARS = 30;
 
 const VALID_TF = new Set<Timeframe>(['5m', '15m', '1h', '4h', '1d']);
 
@@ -26,6 +23,7 @@ export async function GET(req: NextRequest) {
 
   // ── Redis cache check ────────────────────────────────────────────────────
   const base = TIMEFRAME_CONFIGS[timeframe];
+  const WINDOW_BARS = base.historyWindowBars;
   const ttl = base.cacheTtlSeconds;
   const cacheKey = `hist:${timeframe}:${[a, b].sort().join(':')}`;
   const cached = await cacheGet(cacheKey);
@@ -49,12 +47,13 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // Resample if needed (4h)
-  const barsA = base.resampleFactor ? resampleBars(rawA, base.resampleFactor) : rawA;
-  const barsB = base.resampleFactor ? resampleBars(rawB, base.resampleFactor) : rawB;
+  const applySession = (bars: typeof rawA) => {
+    const resampled = base.resampleFactor ? resampleBars(bars, base.resampleFactor) : bars;
+    return base.sessionFilter ? filterSessionBars(resampled, base.sessionFilter) : resampled;
+  };
 
-  const retA = computeReturns(barsA);
-  const retB = computeReturns(barsB);
+  const retA = computeReturns(applySession(rawA));
+  const retB = computeReturns(applySession(rawB));
 
   // Align to intersection of dates
   const sharedDates = Array.from(retA.keys())

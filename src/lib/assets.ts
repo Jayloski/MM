@@ -98,27 +98,38 @@ export const SUBGROUP_ORDER: Subgroup[] = [
 export const TIMEFRAME_CONFIGS: Record<Timeframe, TimeframeConfig> = {
   '5m': {
     yfInterval: '5m',
-    lookbackBars: 78,  // ~1 full US trading session (6.5hr × 12 bars)
-    fetchDays: 10,
+    // 4 US sessions × 90 bars/session (13:00–21:00 UTC = 8hrs × 12)
+    lookbackBars: 360,
+    fetchDays: 59,           // YF hard cap for 5m is ~60 days
     label: '5 Min',
-    refreshIntervalMs:  60_000,   // 1 min
+    refreshIntervalMs:  60_000,
     cacheTtlSeconds:        60,
+    // US RTH 9:30am–5pm ET = 13:30–21:00 UTC; hour bucket 13 captures 13:30
+    sessionFilter: { startUtcHour: 13, endUtcHour: 21 },
+    historyWindowBars: 90,   // ~1 full US session
   },
   '15m': {
     yfInterval: '15m',
-    lookbackBars: 78,  // ~3 trading days (26 bars/day × 3)
-    fetchDays: 21,
+    // 5 days × 56 bars/day (07:00–21:00 UTC = 14hrs × 4)
+    lookbackBars: 280,
+    fetchDays: 59,           // YF hard cap for 15m is ~60 days
     label: '15 Min',
-    refreshIntervalMs:  90_000,   // 1.5 min
+    refreshIntervalMs:  90_000,
     cacheTtlSeconds:        90,
+    // EU open to US close: 7am–9pm UTC (London 8am BST → NY 5pm ET)
+    sessionFilter: { startUtcHour: 7, endUtcHour: 21 },
+    historyWindowBars: 56,   // ~1 full EU+US session
   },
   '1h': {
     yfInterval: '60m',
-    lookbackBars: 200,
-    fetchDays: 60,
+    // 15 days × 14 bars/day (07:00–21:00 UTC)
+    lookbackBars: 210,
+    fetchDays: 90,
     label: '1 Hour',
-    refreshIntervalMs: 300_000,   // 5 min
+    refreshIntervalMs: 300_000,
     cacheTtlSeconds:       300,
+    sessionFilter: { startUtcHour: 7, endUtcHour: 21 },
+    historyWindowBars: 30,
   },
   '4h': {
     yfInterval: '60m',
@@ -126,16 +137,18 @@ export const TIMEFRAME_CONFIGS: Record<Timeframe, TimeframeConfig> = {
     lookbackBars: 200,
     fetchDays: 120,
     label: '4 Hour',
-    refreshIntervalMs: 900_000,   // 15 min
+    refreshIntervalMs: 900_000,
     cacheTtlSeconds:       900,
+    historyWindowBars: 30,
   },
   '1d': {
     yfInterval: '1d',
     lookbackBars: 252,
     fetchDays: 400,
     label: 'Daily',
-    refreshIntervalMs: 1_800_000, // 30 min
+    refreshIntervalMs: 1_800_000,
     cacheTtlSeconds:      1_800,
+    historyWindowBars: 30,
   },
 };
 

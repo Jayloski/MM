@@ -5,6 +5,7 @@ import { cacheGet, cacheSet } from '@/lib/cache';
 import {
   computeReturns,
   resampleBars,
+  filterSessionBars,
   buildCorrelationMatrix,
 } from '@/lib/correlation';
 import type { Timeframe, AssetClass, CorrelationResponse } from '@/types';
@@ -51,9 +52,12 @@ export async function GET(req: NextRequest) {
 
   const returnMaps = new Map<string, Map<string, number>>();
   for (const [ticker, bars] of Object.entries(history)) {
-    const processedBars = config.resampleFactor
+    const resampledBars = config.resampleFactor
       ? resampleBars(bars, config.resampleFactor)
       : bars;
+    const processedBars = config.sessionFilter
+      ? filterSessionBars(resampledBars, config.sessionFilter)
+      : resampledBars;
     const retMap = computeReturns(processedBars);
     if (retMap.size >= 2) {
       returnMaps.set(ticker, retMap);

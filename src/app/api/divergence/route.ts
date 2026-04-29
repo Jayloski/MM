@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ASSETS, TIMEFRAME_CONFIGS, ALL_ASSET_CLASSES } from '@/lib/assets';
 import { fetchPrices } from '@/lib/fetchPrices';
 import { cacheGet, cacheSet } from '@/lib/cache';
-import { computeReturns, resampleBars, pearson } from '@/lib/correlation';
+import { computeReturns, resampleBars, filterSessionBars, pearson } from '@/lib/correlation';
 import type { Timeframe, AssetClass, DivergencePair, DivergenceResponse } from '@/types';
 
 export const dynamic = 'force-dynamic';
@@ -61,7 +61,8 @@ export async function GET(req: NextRequest) {
   const returnMaps = new Map<string, Map<string, number>>();
   for (const [ticker, bars] of Object.entries(history)) {
     if (skipped.includes(ticker)) continue;
-    const processed = config.resampleFactor ? resampleBars(bars, config.resampleFactor) : bars;
+    const resampled = config.resampleFactor ? resampleBars(bars, config.resampleFactor) : bars;
+    const processed = config.sessionFilter ? filterSessionBars(resampled, config.sessionFilter) : resampled;
     const retMap = computeReturns(processed);
     if (retMap.size >= longWindow + 1) {
       returnMaps.set(ticker, retMap);

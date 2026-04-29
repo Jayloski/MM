@@ -42,6 +42,14 @@ export interface TimeframeConfig {
   refreshIntervalMs: number;
   /** Cache-Control max-age sent by the API route (seconds) */
   cacheTtlSeconds: number;
+  /**
+   * For intraday timeframes: only keep bars whose UTC hour falls in
+   * [startUtcHour, endUtcHour). Strips low-volume overnight bars before
+   * computing returns so futures and forex share a common active session.
+   */
+  sessionFilter?: { startUtcHour: number; endUtcHour: number };
+  /** Rolling-window size (bars) used by the history endpoint */
+  historyWindowBars: number;
 }
 
 export interface PriceBar {

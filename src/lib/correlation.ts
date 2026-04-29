@@ -1,6 +1,24 @@
 import type { PriceBar } from '@/types';
 
 /**
+ * Strip bars outside the given UTC hour range [startUtcHour, endUtcHour).
+ * Daily bars (no 'T' in the date key) are passed through unchanged.
+ * Removes overnight low-volume noise so futures and forex share only their
+ * common active session before returns are computed.
+ */
+export function filterSessionBars(
+  bars: PriceBar[],
+  filter: { startUtcHour: number; endUtcHour: number },
+): PriceBar[] {
+  return bars.filter(bar => {
+    const tIdx = bar.date.indexOf('T');
+    if (tIdx === -1) return true;
+    const hour = parseInt(bar.date.slice(tIdx + 1, tIdx + 3), 10);
+    return hour >= filter.startUtcHour && hour < filter.endUtcHour;
+  });
+}
+
+/**
  * Compute percentage returns from a sorted price series.
  * Filters out NaN / Infinity that arise from zero or missing prices.
  */
