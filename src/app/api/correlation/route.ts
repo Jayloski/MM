@@ -5,7 +5,6 @@ import { cacheGet, cacheSet } from '@/lib/cache';
 import {
   computeReturns,
   resampleBars,
-  alignReturns,
   buildCorrelationMatrix,
 } from '@/lib/correlation';
 import type { Timeframe, AssetClass, CorrelationResponse } from '@/types';
@@ -79,8 +78,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const aligned = alignReturns(returnMaps, config.lookbackBars);
-  const matrix = buildCorrelationMatrix(availableTickers, aligned);
+  const matrix = buildCorrelationMatrix(availableTickers, returnMaps, config.lookbackBars);
 
   const assetMap = new Map(assets.map(a => [a.ticker, a]));
   const labels: Record<string, string> = {};
