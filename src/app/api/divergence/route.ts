@@ -132,6 +132,53 @@ export async function GET(req: NextRequest) {
           ? (cumSpread - mean_s * shortWindow) / expectedStd
           : 0;
 
+        // ── Individual leg momentum Z ────────────────────────────────────
+        const meanA = mean(arrLongA), stdA = std(arrLongA, meanA);
+        const denom_A = stdA * Math.sqrt(shortWindow);
+        const momentumZA = denom_A > 0 ? (cumA - meanA * shortWindow) / denom_A : 0;
+
+        const meanB = mean(arrLongB), stdB = std(arrLongB, meanB);
+        const denom_B = stdB * Math.sqrt(shortWindow);
+        const momentumZB = denom_B > 0 ? (cumB - meanB * shortWindow) / denom_B : 0;
+
+        // ── Historical follow-through ────────────────────────────────────
+        const histLen   = Math.min(shared.length, 500);
+        const histDates = shared.slice(-histLen);
+        let totalSignals = 0, totalReverts = 0, laggardCaught = 0;
+
+        for (let k = longWindow; k <= histLen - shortWindow - 1; k += shortWindow) {
+          const baseDates  = histDates.slice(k - longWindow, k);
+          const spreadBase = baseDates.map(d => (retA.get(d) ?? 0) - (retB.get(d) ?? 0));
+          const mu_h = mean(spreadBase), std_h = std(spreadBase, mu_h);
+          if (std_h === 0) continue;
+
+          const shortWinDates  = histDates.slice(k - shortWindow, k);
+          const cumSpreadShort = shortWinDates.reduce(
+            (s, d) => s + (retA.get(d) ?? 0) - (retB.get(d) ?? 0), 0,
+          );
+          const zAtK = (cumSpreadShort - mu_h * shortWindow) / (std_h * Math.sqrt(shortWindow));
+          if (Math.abs(zAtK) < 1.0) continue;
+          totalSignals++;
+
+          const nextDates     = histDates.slice(k, k + shortWindow);
+          const cumSpreadNext = nextDates.reduce(
+            (s, d) => s + (retA.get(d) ?? 0) - (retB.get(d) ?? 0), 0,
+          );
+          const reverted = (zAtK > 0 && cumSpreadNext < 0) || (zAtK < 0 && cumSpreadNext > 0);
+          if (!reverted) continue;
+          totalReverts++;
+
+          const cumANext = nextDates.reduce((s, d) => s + (retA.get(d) ?? 0), 0);
+          const cumBNext = nextDates.reduce((s, d) => s + (retB.get(d) ?? 0), 0);
+          const aContrib = zAtK > 0 ? -cumANext :  cumANext;
+          const bContrib = zAtK > 0 ?  cumBNext : -cumBNext;
+          if (bContrib > aContrib) laggardCaught++;
+        }
+
+        const followRate       = totalSignals >= 3 ? totalReverts  / totalSignals : undefined;
+        const laggardCatchRate = totalReverts  >  0 ? laggardCaught / totalReverts : undefined;
+        const sampleCount      = totalSignals >= 3 ? totalSignals : undefined;
+
         divergentPairs.push({
           a: ta, b: tb,
           aLabel: assetMap.get(ta)?.label ?? ta,
@@ -142,6 +189,11 @@ export async function GET(req: NextRequest) {
           spreadZ:    parseFloat(spreadZ.toFixed(4)),
           cumA:       parseFloat(cumA.toFixed(6)),
           cumB:       parseFloat(cumB.toFixed(6)),
+          momentumZA: parseFloat(momentumZA.toFixed(4)),
+          momentumZB: parseFloat(momentumZB.toFixed(4)),
+          followRate:       followRate       != null ? parseFloat(followRate.toFixed(4))       : undefined,
+          laggardCatchRate: laggardCatchRate != null ? parseFloat(laggardCatchRate.toFixed(4)) : undefined,
+          sampleCount,
         });
       }
     }

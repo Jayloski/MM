@@ -54,6 +54,13 @@ function PctCell({ value }: { value: number }) {
   );
 }
 
+function MomentumArrow({ z }: { z: number }) {
+  const abs = Math.abs(z);
+  const arrow = abs > 1.5 ? (z > 0 ? '↑↑' : '↓↓') : abs > 0.5 ? (z > 0 ? '↑' : '↓') : '';
+  if (!arrow) return null;
+  return <span style={{ color: z > 0 ? '#34d399' : '#f87171' }} className="ml-1 text-[10px]">{arrow}</span>;
+}
+
 function SpreadZBadge({ z }: { z: number }) {
   const abs = Math.abs(z);
   const color = abs >= 2.5 ? '#f59e0b' : abs >= 1.5 ? '#fb923c' : '#94a3b8';
@@ -318,10 +325,14 @@ export default function DivergenceScanner({ timeframe, activeClasses, threshold,
                         </td>
                         <td className="px-4 py-2.5 text-right"><RCell value={pair.longR} /></td>
                         <td className="px-4 py-2.5 text-right">
-                          {pair.cumA != null ? <PctCell value={pair.cumA} /> : <span className="text-slate-600">—</span>}
+                          {pair.cumA != null
+                            ? <><PctCell value={pair.cumA} />{pair.momentumZA != null && <MomentumArrow z={pair.momentumZA} />}</>
+                            : <span className="text-slate-600">—</span>}
                         </td>
                         <td className="px-4 py-2.5 text-right">
-                          {pair.cumB != null ? <PctCell value={pair.cumB} /> : <span className="text-slate-600">—</span>}
+                          {pair.cumB != null
+                            ? <><PctCell value={pair.cumB} />{pair.momentumZB != null && <MomentumArrow z={pair.momentumZB} />}</>
+                            : <span className="text-slate-600">—</span>}
                         </td>
                         <td className="px-4 py-2.5 text-right"><SpreadZBadge z={z} /></td>
                         <td className="px-4 py-2.5 text-center">
@@ -331,6 +342,15 @@ export default function DivergenceScanner({ timeframe, activeClasses, threshold,
                           >
                             {leadLabel}
                           </span>
+                          {pair.sampleCount != null && pair.followRate != null ? (
+                            <div className="mt-0.5 text-[10px] text-slate-500">
+                              {Math.round(pair.followRate * 100)}% revert
+                              {pair.laggardCatchRate != null && ` · ${Math.round(pair.laggardCatchRate * 100)}% lag`}
+                              <span className="ml-1 text-slate-600">({pair.sampleCount})</span>
+                            </div>
+                          ) : (
+                            <div className="mt-0.5 text-[10px] text-slate-600">—</div>
+                          )}
                         </td>
                       </tr>
                     );
