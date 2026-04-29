@@ -6,11 +6,9 @@ export const ASSETS: Asset[] = [
   { ticker: 'ES=F',     label: 'S&P 500',       assetClass: 'futures', subGroup: 'mini_index' },
   { ticker: 'NQ=F',     label: 'Nasdaq 100',    assetClass: 'futures', subGroup: 'mini_index' },
   { ticker: 'RTY=F',    label: 'Russell 2000',  assetClass: 'futures', subGroup: 'mini_index' },
-  // Intl Index
+  // Intl Index (CME-traded only — cash indices on foreign exchanges excluded at intraday)
   { ticker: 'DX-Y.NYB', label: 'DXY',           assetClass: 'futures', subGroup: 'intl_index' },
-  { ticker: '^FCHI',    label: 'CAC 40',         assetClass: 'futures', subGroup: 'intl_index' },
   { ticker: 'USDJPY=X', label: 'JPY Index',      assetClass: 'futures', subGroup: 'intl_index' },
-  { ticker: '^NSEI',    label: 'Nifty 50',       assetClass: 'futures', subGroup: 'intl_index' },
   { ticker: 'NKD=F',    label: 'Nikkei Fut',     assetClass: 'futures', subGroup: 'intl_index' },
   // Financials / Bond Futures
   { ticker: 'UB=F',     label: 'Ultra Bond',    assetClass: 'futures', subGroup: 'financials' },
@@ -100,16 +98,16 @@ export const SUBGROUP_ORDER: Subgroup[] = [
 export const TIMEFRAME_CONFIGS: Record<Timeframe, TimeframeConfig> = {
   '5m': {
     yfInterval: '5m',
-    lookbackBars: 200,
-    fetchDays: 7,
+    lookbackBars: 78,  // ~1 full US trading session (6.5hr × 12 bars)
+    fetchDays: 10,
     label: '5 Min',
     refreshIntervalMs:  60_000,   // 1 min
     cacheTtlSeconds:        60,
   },
   '15m': {
     yfInterval: '15m',
-    lookbackBars: 200,
-    fetchDays: 14,
+    lookbackBars: 78,  // ~3 trading days (26 bars/day × 3)
+    fetchDays: 21,
     label: '15 Min',
     refreshIntervalMs:  90_000,   // 1.5 min
     cacheTtlSeconds:        90,
