@@ -300,6 +300,7 @@ export default function HomePage() {
             <DivergenceScanner
               timeframe={timeframe}
               activeClasses={activeClasses}
+              threshold={threshold}
               onPairClick={(a, b, aLabel, bLabel) => openHistory(a, b, aLabel, bLabel, null)}
             />
           </>

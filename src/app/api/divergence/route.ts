@@ -10,12 +10,17 @@ export const dynamic = 'force-dynamic';
 const VALID_TIMEFRAMES = new Set<Timeframe>(['5m', '15m', '1h', '4h', '1d']);
 const VALID_CLASSES = new Set<AssetClass>(ALL_ASSET_CLASSES);
 
-// Default window sizes (in bars)
 const DEFAULT_SHORT = 20;
 const DEFAULT_LONG  = 60;
-
-// Only return the top N most divergent pairs to keep the response lean
 const TOP_N = 30;
+
+function mean(arr: number[]): number {
+  return arr.reduce((s, v) => s + v, 0) / arr.length;
+}
+
+function std(arr: number[], mu = mean(arr)): number {
+  return Math.sqrt(arr.reduce((s, v) => s + (v - mu) ** 2, 0) / arr.length);
+}
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
@@ -31,6 +36,10 @@ export async function GET(req: NextRequest) {
   const shortWindow = Math.max(5,  parseInt(searchParams.get('shortWindow') ?? String(DEFAULT_SHORT), 10) || DEFAULT_SHORT);
   const longWindow  = Math.max(10, parseInt(searchParams.get('longWindow')  ?? String(DEFAULT_LONG),  10) || DEFAULT_LONG);
 
+  const modeParam = searchParams.get('mode') ?? 'correlation';
+  const mode: 'correlation' | 'spread' = modeParam === 'spread' ? 'spread' : 'correlation';
+  const minLongR = parseFloat(searchParams.get('minLongR') ?? '0') || 0;
+
   if (requestedClasses.length === 0) {
     return NextResponse.json({ error: 'No valid asset classes requested' }, { status: 400 });
   }
@@ -41,13 +50,12 @@ export async function GET(req: NextRequest) {
     'Cache-Control': `public, s-maxage=${ttl}, stale-while-revalidate=${ttl * 2}`,
   };
 
-  const cacheKey = `div:${timeframe}:${shortWindow}:${longWindow}:${[...requestedClasses].sort().join(',')}`;
+  const cacheKey = `div:${timeframe}:${shortWindow}:${longWindow}:${mode}:${minLongR.toFixed(3)}:${[...requestedClasses].sort().join(',')}`;
   const cached = await cacheGet(cacheKey);
   if (cached) {
     return NextResponse.json(JSON.parse(cached), { headers: cacheHeaders });
   }
 
-  // Fetch enough history to compute the long window
   const extraFactor = Math.ceil((longWindow * 2) / config.lookbackBars) + 1;
   const histConfig = { ...config, fetchDays: config.fetchDays * extraFactor };
 
@@ -57,7 +65,6 @@ export async function GET(req: NextRequest) {
 
   const { history, skipped } = await fetchPrices(tickers, histConfig);
 
-  // Build return series per ticker
   const returnMaps = new Map<string, Map<string, number>>();
   for (const [ticker, bars] of Object.entries(history)) {
     if (skipped.includes(ticker)) continue;
@@ -74,7 +81,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Insufficient data for divergence scan' }, { status: 502 });
   }
 
-  // For each pair, compute short-window and long-window correlations
   const divergentPairs: DivergencePair[] = [];
 
   for (let i = 0; i < available.length; i++) {
@@ -87,7 +93,6 @@ export async function GET(req: NextRequest) {
       const shared = Array.from(retA.keys()).filter(d => retB.has(d)).sort();
       if (shared.length < longWindow + 1) continue;
 
-      // Most-recent longWindow dates
       const longDates  = shared.slice(-longWindow);
       const shortDates = shared.slice(-shortWindow);
 
@@ -96,26 +101,52 @@ export async function GET(req: NextRequest) {
       const arrShortA = shortDates.map(d => retA.get(d)!);
       const arrShortB = shortDates.map(d => retB.get(d)!);
 
-      const longR  = pearson(arrLongA,  arrLongB);
+      const longR  = pearson(arrLongA, arrLongB);
       const shortR = pearson(arrShortA, arrShortB);
 
       if (!isFinite(longR) || !isFinite(shortR)) continue;
 
-      const divergence = Math.abs(shortR - longR);
+      if (mode === 'correlation') {
+        divergentPairs.push({
+          a: ta, b: tb,
+          aLabel: assetMap.get(ta)?.label ?? ta,
+          bLabel: assetMap.get(tb)?.label ?? tb,
+          shortR:     parseFloat(shortR.toFixed(4)),
+          longR:      parseFloat(longR.toFixed(4)),
+          divergence: parseFloat(Math.abs(shortR - longR).toFixed(4)),
+        });
+      } else {
+        // Spread mode: only process pairs with sufficient long-window correlation
+        if (Math.abs(longR) < minLongR) continue;
 
-      divergentPairs.push({
-        a: ta,
-        b: tb,
-        aLabel: assetMap.get(ta)?.label ?? ta,
-        bLabel: assetMap.get(tb)?.label ?? tb,
-        shortR:     parseFloat(shortR.toFixed(4)),
-        longR:      parseFloat(longR.toFixed(4)),
-        divergence: parseFloat(divergence.toFixed(4)),
-      });
+        const spreadLong = longDates.map((d, k) => arrLongA[k] - arrLongB[k]);
+        const mean_s = mean(spreadLong);
+        const std_s  = std(spreadLong, mean_s);
+
+        const cumA = arrShortA.reduce((s, v) => s + v, 0);
+        const cumB = arrShortB.reduce((s, v) => s + v, 0);
+        const cumSpread = cumA - cumB;
+
+        const expectedStd = std_s * Math.sqrt(shortWindow);
+        const spreadZ = expectedStd > 0
+          ? (cumSpread - mean_s * shortWindow) / expectedStd
+          : 0;
+
+        divergentPairs.push({
+          a: ta, b: tb,
+          aLabel: assetMap.get(ta)?.label ?? ta,
+          bLabel: assetMap.get(tb)?.label ?? tb,
+          shortR:     parseFloat(shortR.toFixed(4)),
+          longR:      parseFloat(longR.toFixed(4)),
+          divergence: parseFloat(Math.abs(spreadZ).toFixed(4)),
+          spreadZ:    parseFloat(spreadZ.toFixed(4)),
+          cumA:       parseFloat(cumA.toFixed(6)),
+          cumB:       parseFloat(cumB.toFixed(6)),
+        });
+      }
     }
   }
 
-  // Sort by divergence desc, take top N
   divergentPairs.sort((a, b) => b.divergence - a.divergence);
   const topPairs = divergentPairs.slice(0, TOP_N);
 
@@ -124,6 +155,7 @@ export async function GET(req: NextRequest) {
     timeframe,
     shortWindow,
     longWindow,
+    mode,
     fetchedAt: new Date().toISOString(),
   };
 

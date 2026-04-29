@@ -110,8 +110,14 @@ export interface DivergencePair {
   bLabel: string;
   shortR: number;
   longR: number;
-  /** |shortR - longR| */
+  /** |shortR - longR| in correlation mode; |spreadZ| in spread mode */
   divergence: number;
+  /** Spread mode: z-score of cumulative return spread vs long-window baseline */
+  spreadZ?: number;
+  /** Spread mode: cumulative return of A over shortWindow (raw fraction) */
+  cumA?: number;
+  /** Spread mode: cumulative return of B over shortWindow (raw fraction) */
+  cumB?: number;
 }
 
 export interface DivergenceResponse {
@@ -119,5 +125,6 @@ export interface DivergenceResponse {
   timeframe: Timeframe;
   shortWindow: number;
   longWindow: number;
+  mode: 'correlation' | 'spread';
   fetchedAt: string;
 }
