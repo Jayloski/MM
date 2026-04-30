@@ -4,7 +4,6 @@ import { fetchPrices } from '@/lib/fetchPrices';
 import {
   computeReturns,
   resampleBars,
-  alignReturns,
   buildCorrelationMatrix,
 } from '@/lib/correlation';
 import type { Timeframe, AssetClass, CorrelationResponse } from '@/types';
@@ -64,9 +63,8 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // Align returns and build matrix
-  const aligned = alignReturns(returnMaps, config.lookbackBars);
-  const matrix = buildCorrelationMatrix(availableTickers, aligned);
+  // Build matrix using pairwise date intersection per pair
+  const matrix = buildCorrelationMatrix(availableTickers, returnMaps, config.lookbackBars);
 
   // Build lookup maps
   const assetMap = new Map(assets.map(a => [a.ticker, a]));
