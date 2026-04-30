@@ -9,7 +9,6 @@ export const ASSETS: Asset[] = [
   // Intl Index
   { ticker: 'DX-Y.NYB', label: 'DXY',           assetClass: 'futures', subGroup: 'intl_index' },
   { ticker: '^FCHI',    label: 'CAC 40',         assetClass: 'futures', subGroup: 'intl_index' },
-  { ticker: 'USDJPY=X', label: 'JPY Index',      assetClass: 'futures', subGroup: 'intl_index' },
   { ticker: '^NSEI',    label: 'Nifty 50',       assetClass: 'futures', subGroup: 'intl_index' },
   { ticker: 'NKD=F',    label: 'Nikkei Fut',     assetClass: 'futures', subGroup: 'intl_index' },
   // Financials / Bond Futures
@@ -37,6 +36,7 @@ export const ASSETS: Asset[] = [
 
   // ── FOREX ────────────────────────────────────────────────────────────────
   // JPY Crosses
+  { ticker: 'USDJPY=X', label: 'USD/JPY', assetClass: 'forex', subGroup: 'jpy_crosses' },
   { ticker: 'CADJPY=X', label: 'CAD/JPY', assetClass: 'forex', subGroup: 'jpy_crosses' },
   { ticker: 'CHFJPY=X', label: 'CHF/JPY', assetClass: 'forex', subGroup: 'jpy_crosses' },
   // Trades
