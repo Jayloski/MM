@@ -75,32 +75,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // Find shared dates across all available tickers, sorted ascending
-  let sharedDates: Set<string> | null = null;
-  for (const t of availableTickers) {
-    const dates = new Set(returnMaps.get(t)!.keys());
-    if (sharedDates === null) {
-      sharedDates = dates;
-    } else {
-      for (const d of sharedDates) {
-        if (!dates.has(d)) sharedDates.delete(d);
-      }
-    }
-  }
-
-  const histDates = sharedDates
-    ? Array.from(sharedDates).sort()
-    : [];
-
-  if (histDates.length < longWindow + shortWindow + 3) {
-    return NextResponse.json(
-      { error: 'Not enough aligned history', skipped },
-      { status: 502 },
-    );
-  }
-
   const assetMap = new Map(assets.map(a => [a.ticker, a]));
-
   const results: DivergencePair[] = [];
 
   for (let i = 0; i < availableTickers.length; i++) {
@@ -111,10 +86,18 @@ export async function GET(req: NextRequest) {
       const retA = returnMaps.get(tA)!;
       const retB = returnMaps.get(tB)!;
 
-      // Use the tail of histDates for all calculations
-      const windowDates = histDates.slice(-(longWindow + shortWindow));
+      // Per-pair date intersection — avoids cross-asset-class hour mismatches
+      const datesA = new Set(retA.keys());
+      const pairDates = Array.from(retB.keys()).filter(d => datesA.has(d)).sort();
+
+      if (pairDates.length < longWindow + shortWindow + 3) continue;
+
+      const windowDates = pairDates.slice(-(longWindow + shortWindow));
       const longDates  = windowDates.slice(0, longWindow);
       const shortDates = windowDates.slice(longWindow);
+
+      // histDates for the loop is the per-pair aligned series
+      const histDates = pairDates;
 
       const longAVals  = longDates.map(d => retA.get(d) ?? 0);
       const longBVals  = longDates.map(d => retB.get(d) ?? 0);
