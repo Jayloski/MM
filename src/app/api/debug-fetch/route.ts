@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import yahooFinance from 'yahoo-finance2';
 
 export const revalidate = 0;
 
@@ -10,8 +9,14 @@ export async function GET() {
   period1.setDate(period1.getDate() - 7);
 
   try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const yf = require('yahoo-finance2');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result = await (yahooFinance.chart as any)(
+    const yahooFinance: any = yf.default ?? yf;
+
+    yahooFinance.suppressNotices?.(['yahooSurvey', 'ripHistorical']);
+
+    const result = await yahooFinance.chart(
       ticker,
       { period1, period2, interval: '60m' },
       { validateResult: false },
@@ -29,7 +34,7 @@ export async function GET() {
       ok: false,
       ticker,
       error: err instanceof Error ? err.message : String(err),
-      stack: err instanceof Error ? err.stack?.split('\n').slice(0, 5) : undefined,
+      stack: err instanceof Error ? err.stack?.split('\n').slice(0, 6) : undefined,
     });
   }
 }

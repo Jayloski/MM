@@ -1,12 +1,17 @@
 import 'server-only';
-import yahooFinance from 'yahoo-finance2';
 import type { PriceBar } from '@/types';
 import type { TimeframeConfig } from '@/types';
 
-// Suppress yahoo-finance2 survey / notice prompts (method added in v2.3+)
+// Use require to force CJS path — avoids webpack ESM/CJS interop breaking
+// yahoo-finance2's internal dynamic requires
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const yf = require('yahoo-finance2');
+// The package exports a default instance; handle both CJS and ESM shapes
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const yahooFinance: any = yf.default ?? yf;
+
 try {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (yahooFinance as any).suppressNotices?.(['yahooSurvey', 'ripHistorical']);
+  yahooFinance.suppressNotices?.(['yahooSurvey', 'ripHistorical']);
 } catch { /* ignore */ }
 
 const BATCH_SIZE = 8;
@@ -20,8 +25,7 @@ async function fetchOneTicker(
     const period1 = new Date();
     period1.setDate(period1.getDate() - config.fetchDays);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result = await (yahooFinance.chart as any)(
+    const result = await yahooFinance.chart(
       ticker,
       { period1, period2, interval: config.yfInterval },
       { validateResult: false },
