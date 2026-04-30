@@ -344,13 +344,14 @@ export default function DivergenceScanner() {
     new Set(ALL_ASSET_CLASSES),
   );
   const [threshold, setThreshold] = useState(0.70);
+  const [shortWindow, setShortWindow] = useState(5);
   const [data, setData] = useState<DivergenceResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
 
   const fetchData = useCallback(
-    async (tf: Timeframe, classes: Set<AssetClass>, thresh: number) => {
+    async (tf: Timeframe, classes: Set<AssetClass>, thresh: number, sw: number) => {
       setLoading(true);
       setError(null);
       try {
@@ -358,6 +359,7 @@ export default function DivergenceScanner() {
           timeframe: tf,
           classes: Array.from(classes).join(','),
           threshold: thresh.toFixed(2),
+          shortWindow: String(sw),
         });
         const res = await fetch(`/api/divergence?${params}`);
         if (!res.ok) {
@@ -376,8 +378,8 @@ export default function DivergenceScanner() {
   );
 
   useEffect(() => {
-    fetchData(timeframe, activeClasses, threshold);
-  }, [timeframe, activeClasses, threshold, fetchData]);
+    fetchData(timeframe, activeClasses, threshold, shortWindow);
+  }, [timeframe, activeClasses, threshold, shortWindow, fetchData]);
 
   const qualifiedPairs   = data?.pairs.filter(p => p.moverIsA != null) ?? [];
   const unqualifiedPairs = data?.pairs.filter(p => p.moverIsA == null) ?? [];
@@ -408,6 +410,24 @@ export default function DivergenceScanner() {
         <TimeframeSelector value={timeframe} onChange={setTimeframe} />
         <div className="h-5 w-px bg-surface-border" />
         <AssetClassFilter active={activeClasses} onChange={setActiveClasses} />
+        <div className="h-5 w-px bg-surface-border" />
+        {/* Short window */}
+        <div className="flex items-center gap-1">
+          <span className="mr-2 text-xs text-slate-500 uppercase tracking-wider">Window</span>
+          {[5, 10, 20].map(w => (
+            <button
+              key={w}
+              onClick={() => setShortWindow(w)}
+              className={`rounded px-3 py-1 text-xs font-mono font-semibold transition-colors ${
+                shortWindow === w
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-surface-border text-slate-400 hover:bg-slate-600 hover:text-white'
+              }`}
+            >
+              {w}b
+            </button>
+          ))}
+        </div>
         <div className="h-5 w-px bg-surface-border" />
         <div className="flex items-center gap-3">
           <span className="text-xs text-slate-500 uppercase tracking-wider">Min Corr</span>

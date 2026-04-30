@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import * as d3 from 'd3';
 import type { CorrelationResponse, AssetClass, WebNode, WebLink } from '@/types';
 import { ASSET_CLASS_COLORS } from '@/lib/assets';
@@ -10,25 +10,51 @@ interface Props {
   threshold: number;
 }
 
+interface CorrelatedNeighbor {
+  id: string;
+  label: string;
+  r: number;
+}
+
 export default function CorrelationWeb({ data, threshold }: Props) {
-  const svgRef = useRef<SVGSVGElement>(null);
-  const simRef = useRef<d3.Simulation<WebNode, WebLink> | null>(null);
+  const svgRef    = useRef<SVGSVGElement>(null);
+  const simRef    = useRef<d3.Simulation<WebNode, WebLink> | null>(null);
+  const selectRef = useRef<(id: string | null) => void>(() => {});
+
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // Keep ref in sync so D3 click handlers never have stale closure
+  selectRef.current = setSelectedId;
+
+  // Derive panel data from selectedId
+  const selectedLabel = selectedId ? (data.labels[selectedId] ?? selectedId) : null;
+  const neighbors: CorrelatedNeighbor[] = selectedId
+    ? (() => {
+        const idx = data.tickers.indexOf(selectedId);
+        if (idx === -1) return [];
+        return data.tickers
+          .map((t, j) => ({ id: t, label: data.labels[t] ?? t, r: data.matrix[idx][j] as number }))
+          .filter(n => n.id !== selectedId && n.r != null && isFinite(n.r))
+          .sort((a, b) => Math.abs(b.r) - Math.abs(a.r));
+      })()
+    : [];
+
+  const handleNeighborClick = useCallback((id: string) => {
+    setSelectedId(id);
+  }, []);
 
   useEffect(() => {
     if (!svgRef.current) return;
 
-    // Stop any running simulation
     simRef.current?.stop();
 
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove();
 
-    const width = svgRef.current.clientWidth || 900;
+    const width  = svgRef.current.clientWidth  || 900;
     const height = svgRef.current.clientHeight || 600;
-
     svg.attr('viewBox', `0 0 ${width} ${height}`);
 
-    // Build nodes
     const nodes: WebNode[] = data.tickers.map(ticker => ({
       id: ticker,
       label: data.labels[ticker] ?? ticker,
@@ -38,7 +64,6 @@ export default function CorrelationWeb({ data, threshold }: Props) {
 
     const tickerIndex = new Map(data.tickers.map((t, i) => [t, i]));
 
-    // Build links — only above threshold
     const links: WebLink[] = [];
     const n = data.tickers.length;
     for (let i = 0; i < n; i++) {
@@ -46,119 +71,84 @@ export default function CorrelationWeb({ data, threshold }: Props) {
         const r = data.matrix[i][j];
         if (r == null) continue;
         const absR = Math.abs(r);
-        if (absR >= threshold) {
-          links.push({
-            source: data.tickers[i],
-            target: data.tickers[j],
-            r,
-            absR,
-          });
-        }
+        if (absR >= threshold) links.push({ source: data.tickers[i], target: data.tickers[j], r, absR });
       }
     }
 
-    // Scales
-    const edgeWidth = d3.scaleLinear([threshold, 1], [0.5, 6]);
+    const edgeWidth   = d3.scaleLinear([threshold, 1], [0.5, 6]);
     const edgeOpacity = d3.scaleLinear([threshold, 1], [0.25, 0.85]);
 
-    // Container group for zoom/pan
     const container = svg.append('g');
-
     svg.call(
-      d3
-        .zoom<SVGSVGElement, unknown>()
-        .scaleExtent([0.2, 4])
-        .on('zoom', event => {
-          container.attr('transform', event.transform);
-        }),
+      d3.zoom<SVGSVGElement, unknown>().scaleExtent([0.2, 4]).on('zoom', ev => {
+        container.attr('transform', ev.transform);
+      }),
     );
 
-    // Links
     const linkEl = container
-      .append('g')
-      .attr('class', 'links')
+      .append('g').attr('class', 'links')
       .selectAll<SVGLineElement, WebLink>('line')
-      .data(links)
-      .join('line')
+      .data(links).join('line')
       .attr('stroke', d => (d.r > 0 ? '#60a5fa' : '#f87171'))
       .attr('stroke-width', d => edgeWidth(d.absR))
       .attr('stroke-opacity', d => edgeOpacity(d.absR));
 
-    // Node groups
-    const nodeEl = container
-      .append('g')
-      .attr('class', 'nodes')
-      .selectAll<SVGGElement, WebNode>('g')
-      .data(nodes)
-      .join('g')
-      .attr('cursor', 'grab');
-
     const radius = 16;
 
-    nodeEl
-      .append('circle')
+    const nodeEl = container
+      .append('g').attr('class', 'nodes')
+      .selectAll<SVGGElement, WebNode>('g')
+      .data(nodes).join('g')
+      .attr('cursor', 'grab');
+
+    nodeEl.append('circle')
       .attr('r', radius)
       .attr('fill', d => ASSET_CLASS_COLORS[d.assetClass] ?? '#888')
       .attr('fill-opacity', 0.9)
       .attr('stroke', '#0f1117')
       .attr('stroke-width', 1.5);
 
-    nodeEl
-      .append('text')
-      .attr('dy', '0.35em')
-      .attr('text-anchor', 'middle')
-      .attr('font-size', 7)
-      .attr('font-family', 'ui-monospace, monospace')
-      .attr('fill', '#0f1117')
-      .attr('pointer-events', 'none')
+    nodeEl.append('text')
+      .attr('dy', '0.35em').attr('text-anchor', 'middle')
+      .attr('font-size', 7).attr('font-family', 'ui-monospace, monospace')
+      .attr('fill', '#0f1117').attr('pointer-events', 'none')
       .text(d => d.label.slice(0, 7));
 
-    // Tooltip label
     nodeEl.append('title').text(d => d.label);
 
-    // Drag behaviour
+    // Click — update selected via ref so closure stays fresh
+    nodeEl.on('click', (_event, d) => {
+      selectRef.current(d.id);
+    });
+
     const drag = d3
       .drag<SVGGElement, WebNode>()
       .on('start', (event, d) => {
         if (!event.active) simulation.alphaTarget(0.3).restart();
-        d.fx = d.x;
-        d.fy = d.y;
-        d3.select<SVGGElement, WebNode>(event.sourceEvent.currentTarget as SVGGElement).attr(
-          'cursor',
-          'grabbing',
-        );
+        d.fx = d.x; d.fy = d.y;
+        try {
+          d3.select<SVGGElement, WebNode>(event.sourceEvent.currentTarget as SVGGElement)
+            .attr('cursor', 'grabbing');
+        } catch { /* ignore */ }
       })
-      .on('drag', (event, d) => {
-        d.fx = event.x;
-        d.fy = event.y;
-      })
+      .on('drag', (event, d) => { d.fx = event.x; d.fy = event.y; })
       .on('end', (event, d) => {
         if (!event.active) simulation.alphaTarget(0);
-        d.fx = null;
-        d.fy = null;
+        d.fx = null; d.fy = null;
         if (event.sourceEvent?.currentTarget) {
           try {
-            d3.select<SVGGElement, WebNode>(event.sourceEvent.currentTarget as SVGGElement).attr(
-              'cursor',
-              'grab',
-            );
-          } catch { /* currentTarget not an SVG element — ignore */ }
+            d3.select<SVGGElement, WebNode>(event.sourceEvent.currentTarget as SVGGElement)
+              .attr('cursor', 'grab');
+          } catch { /* ignore */ }
         }
       });
 
     nodeEl.call(drag as d3.DragBehavior<SVGGElement, WebNode, unknown>);
 
-    // Force simulation
     const simulation = d3
       .forceSimulation<WebNode>(nodes)
-      .force(
-        'link',
-        d3
-          .forceLink<WebNode, WebLink>(links)
-          .id(d => d.id)
-          .distance(d => 140 - d.absR * 70)
-          .strength(d => d.absR * 0.25),
-      )
+      .force('link', d3.forceLink<WebNode, WebLink>(links).id(d => d.id)
+        .distance(d => 140 - d.absR * 70).strength(d => d.absR * 0.25))
       .force('charge', d3.forceManyBody<WebNode>().strength(-220))
       .force('center', d3.forceCenter(width / 2, height / 2))
       .force('collision', d3.forceCollide<WebNode>(radius + 6))
@@ -172,51 +162,97 @@ export default function CorrelationWeb({ data, threshold }: Props) {
         .attr('y1', d => (d.source as WebNode).y ?? 0)
         .attr('x2', d => (d.target as WebNode).x ?? 0)
         .attr('y2', d => (d.target as WebNode).y ?? 0);
-
       nodeEl.attr('transform', d => `translate(${d.x ?? 0},${d.y ?? 0})`);
     });
 
     // Legend
-    const legendData: { cls: AssetClass; label: string }[] = [
-      { cls: 'futures', label: 'Futures' },
-      { cls: 'forex',   label: 'Forex' },
-    ];
-
     const legend = svg.append('g').attr('transform', 'translate(16,16)');
-    legendData.forEach(({ cls, label }, i) => {
-      const row = legend.append('g').attr('transform', `translate(0,${i * 20})`);
-      row.append('circle').attr('r', 6).attr('cy', 6).attr('fill', ASSET_CLASS_COLORS[cls]);
-      row
-        .append('text')
-        .attr('x', 14)
-        .attr('y', 10)
-        .attr('font-size', 11)
-        .attr('fill', '#94a3b8')
-        .text(label);
-    });
+    ([{ cls: 'futures', label: 'Futures' }, { cls: 'forex', label: 'Forex' }] as { cls: AssetClass; label: string }[])
+      .forEach(({ cls, label }, i) => {
+        const row = legend.append('g').attr('transform', `translate(0,${i * 20})`);
+        row.append('circle').attr('r', 6).attr('cy', 6).attr('fill', ASSET_CLASS_COLORS[cls]);
+        row.append('text').attr('x', 14).attr('y', 10).attr('font-size', 11).attr('fill', '#94a3b8').text(label);
+      });
 
-    // Positive / negative edge legend
-    const edgeLegend = svg.append('g').attr('transform', `translate(16,${16 + legendData.length * 20 + 12})`);
-    [{ color: '#60a5fa', label: 'Positive r' }, { color: '#f87171', label: 'Negative r' }].forEach(
-      ({ color, label }, i) => {
+    const edgeLegend = svg.append('g').attr('transform', 'translate(16,60)');
+    ([{ color: '#60a5fa', label: 'Positive r' }, { color: '#f87171', label: 'Negative r' }])
+      .forEach(({ color, label }, i) => {
         const row = edgeLegend.append('g').attr('transform', `translate(0,${i * 18})`);
         row.append('line').attr('x2', 16).attr('y1', 6).attr('y2', 6).attr('stroke', color).attr('stroke-width', 2.5);
         row.append('text').attr('x', 22).attr('y', 10).attr('font-size', 11).attr('fill', '#94a3b8').text(label);
-      },
-    );
+      });
 
-    return () => {
-      simulation.stop();
-    };
+    return () => { simulation.stop(); };
   }, [data, threshold]);
 
   return (
-    <div className="w-full rounded-lg border border-surface-border bg-surface-raised">
-      <svg
-        ref={svgRef}
-        className="block h-[600px] w-full"
-        style={{ background: 'transparent' }}
-      />
+    <div className="flex gap-3">
+      {/* Graph */}
+      <div className={`rounded-lg border border-surface-border bg-surface-raised transition-all ${selectedId ? 'flex-1' : 'w-full'}`}>
+        <svg
+          ref={svgRef}
+          className="block h-[600px] w-full"
+          style={{ background: 'transparent' }}
+        />
+      </div>
+
+      {/* Node detail panel */}
+      {selectedId && (
+        <div className="w-64 shrink-0 rounded-lg border border-surface-border bg-surface-raised">
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-surface-border px-4 py-3">
+            <div>
+              <div className="text-xs text-slate-500 uppercase tracking-wider">Selected</div>
+              <div className="mt-0.5 font-semibold text-white text-sm">{selectedLabel}</div>
+            </div>
+            <button
+              onClick={() => setSelectedId(null)}
+              className="text-slate-500 hover:text-slate-200 text-lg leading-none"
+              aria-label="Close"
+            >
+              ×
+            </button>
+          </div>
+
+          {/* Correlation list */}
+          <div className="overflow-y-auto" style={{ maxHeight: 540 }}>
+            <div className="px-4 py-2 text-xs text-slate-600 uppercase tracking-wider">
+              All correlations
+            </div>
+            {neighbors.map(nb => {
+              const isPos   = nb.r >= 0;
+              const absR    = Math.abs(nb.r);
+              const barColor = isPos ? '#60a5fa' : '#f87171';
+              return (
+                <button
+                  key={nb.id}
+                  onClick={() => handleNeighborClick(nb.id)}
+                  className="w-full px-4 py-2 text-left hover:bg-white/5 transition-colors group"
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-slate-300 group-hover:text-white transition-colors">
+                      {nb.label}
+                    </span>
+                    <span
+                      className="font-mono text-xs font-semibold"
+                      style={{ color: barColor }}
+                    >
+                      {nb.r >= 0 ? '+' : ''}{nb.r.toFixed(2)}
+                    </span>
+                  </div>
+                  {/* Mini bar */}
+                  <div className="h-0.5 w-full rounded-full bg-white/5">
+                    <div
+                      className="h-full rounded-full"
+                      style={{ width: `${absR * 100}%`, background: barColor, opacity: 0.6 }}
+                    />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
