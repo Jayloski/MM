@@ -1,25 +1,16 @@
 import { NextResponse } from 'next/server';
-import yahooFinance from 'yahoo-finance2';
+import { fetchYahooChart } from '@/lib/yahooApi';
 
 export const revalidate = 0;
 
 export async function GET() {
-  const period2 = new Date();
-  const period1 = new Date();
-  period1.setDate(period1.getDate() - 7);
-
   try {
-    const result = await yahooFinance.chart('ES=F', {
-      period1,
-      period2,
-      interval: '60m',
-    });
-    const quotes = result?.quotes ?? [];
+    const bars = await fetchYahooChart('ES=F', '60m', 7);
     return NextResponse.json({
-      ok: true,
-      quoteCount: quotes.length,
-      firstClose: quotes[0]?.close ?? null,
-      lastClose: quotes[quotes.length - 1]?.close ?? null,
+      ok: bars !== null,
+      quoteCount: bars?.length ?? 0,
+      first: bars?.[0] ?? null,
+      last: bars?.[bars.length - 1] ?? null,
     });
   } catch (err) {
     return NextResponse.json({

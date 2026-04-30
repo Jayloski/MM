@@ -1,5 +1,5 @@
 import 'server-only';
-import yahooFinance from 'yahoo-finance2';
+import { fetchYahooChart } from '@/lib/yahooApi';
 import type { PriceBar } from '@/types';
 import type { TimeframeConfig } from '@/types';
 
@@ -10,35 +10,15 @@ async function fetchOneTicker(
   config: TimeframeConfig,
 ): Promise<PriceBar[] | null> {
   try {
-    const period2 = new Date();
-    const period1 = new Date();
-    period1.setDate(period1.getDate() - config.fetchDays);
-
-    const result = await yahooFinance.chart(ticker, {
-      period1,
-      period2,
-      interval: config.yfInterval,
-    });
-
-    const quotes = result?.quotes ?? [];
-    const bars: PriceBar[] = quotes
-      .filter(q => q.close != null && isFinite(q.close as number))
-      .map(q => ({
-        date: new Date(q.date).toISOString(),
-        close: q.close as number,
-      }))
-      .sort((a, b) => a.date.localeCompare(b.date));
-
-    return bars.length > 1 ? bars : null;
+    const bars = await fetchYahooChart(ticker, config.yfInterval, config.fetchDays);
+    if (!bars) return null;
+    const priceBars: PriceBar[] = bars.map(b => ({ date: b.date, close: b.close }));
+    return priceBars.length > 1 ? priceBars : null;
   } catch {
     return null;
   }
 }
 
-/**
- * Fetch price bars for a list of tickers concurrently in batches.
- * Returns a partial result — tickers that fail are excluded.
- */
 export async function fetchPrices(
   tickers: string[],
   config: TimeframeConfig,
