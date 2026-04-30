@@ -2,11 +2,9 @@ import 'server-only';
 import type { PriceBar } from '@/types';
 import type { TimeframeConfig } from '@/types';
 
-// Use require to force CJS path — avoids webpack ESM/CJS interop breaking
-// yahoo-finance2's internal dynamic requires
+// webpackIgnore tells the bundler to leave this require to Node.js at runtime
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const yf = require('yahoo-finance2');
-// The package exports a default instance; handle both CJS and ESM shapes
+const yf = require(/* webpackIgnore: true */ 'yahoo-finance2');
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const yahooFinance: any = yf.default ?? yf;
 

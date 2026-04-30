@@ -10,7 +10,7 @@ export async function GET() {
 
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const yf = require('yahoo-finance2');
+    const yf = require(/* webpackIgnore: true */ 'yahoo-finance2');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const yahooFinance: any = yf.default ?? yf;
 
