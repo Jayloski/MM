@@ -3,8 +3,11 @@ import yahooFinance from 'yahoo-finance2';
 import type { PriceBar } from '@/types';
 import type { TimeframeConfig } from '@/types';
 
-// Suppress yahoo-finance2 survey / notice prompts that throw in some versions
-yahooFinance.suppressNotices(['yahooSurvey', 'ripHistorical']);
+// Suppress yahoo-finance2 survey / notice prompts (method added in v2.3+)
+try {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (yahooFinance as any).suppressNotices?.(['yahooSurvey', 'ripHistorical']);
+} catch { /* ignore */ }
 
 const BATCH_SIZE = 8;
 
@@ -17,7 +20,8 @@ async function fetchOneTicker(
     const period1 = new Date();
     period1.setDate(period1.getDate() - config.fetchDays);
 
-    const result = await yahooFinance.chart(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = await (yahooFinance.chart as any)(
       ticker,
       { period1, period2, interval: config.yfInterval },
       { validateResult: false },
