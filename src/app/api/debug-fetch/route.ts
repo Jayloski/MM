@@ -1,32 +1,30 @@
 import { NextResponse } from 'next/server';
+import yahooFinance from 'yahoo-finance2';
 
 export const revalidate = 0;
 
 export async function GET() {
-  const mod = await import('yahoo-finance2');
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const m = mod as any;
-  const YF = m.default;
+  const period2 = new Date();
+  const period1 = new Date();
+  period1.setDate(period1.getDate() - 7);
 
-  const ownNames = Object.getOwnPropertyNames(YF);
-  const protoNames = YF.prototype ? Object.getOwnPropertyNames(YF.prototype) : [];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const instance = new YF() as any;
-  const instanceNames = Object.getOwnPropertyNames(instance);
-
-  // Walk up prototype chain of instance
-  const chain: string[] = [];
-  let proto = Object.getPrototypeOf(instance);
-  while (proto && proto !== Object.prototype) {
-    chain.push(...Object.getOwnPropertyNames(proto));
-    proto = Object.getPrototypeOf(proto);
+  try {
+    const result = await yahooFinance.chart('ES=F', {
+      period1,
+      period2,
+      interval: '60m',
+    });
+    const quotes = result?.quotes ?? [];
+    return NextResponse.json({
+      ok: true,
+      quoteCount: quotes.length,
+      firstClose: quotes[0]?.close ?? null,
+      lastClose: quotes[quotes.length - 1]?.close ?? null,
+    });
+  } catch (err) {
+    return NextResponse.json({
+      ok: false,
+      error: err instanceof Error ? err.message.slice(0, 300) : String(err),
+    });
   }
-
-  return NextResponse.json({
-    ownNames,
-    protoNames,
-    instanceNames,
-    protoChain: [...new Set(chain)],
-    toStr: YF.toString().slice(0, 200),
-  });
 }
