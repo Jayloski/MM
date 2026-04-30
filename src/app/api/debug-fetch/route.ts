@@ -1,40 +1,38 @@
 import { NextResponse } from 'next/server';
+import yahooFinance from 'yahoo-finance2';
 
 export const revalidate = 0;
 
 export async function GET() {
-  const ticker = 'ES=F';
-  const period2 = new Date();
-  const period1 = new Date();
-  period1.setDate(period1.getDate() - 7);
+  const tickers = ['ES=F', 'NQ=F', 'GC=F'];
+  const results: Record<string, unknown> = {};
 
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const yf = require(/* webpackIgnore: true */ 'yahoo-finance2');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const yahooFinance: any = yf.default ?? yf;
+  for (const ticker of tickers) {
+    const period2 = new Date();
+    const period1 = new Date();
+    period1.setDate(period1.getDate() - 7);
 
-    yahooFinance.suppressNotices?.(['yahooSurvey', 'ripHistorical']);
-
-    const result = await yahooFinance.chart(
-      ticker,
-      { period1, period2, interval: '60m' },
-      { validateResult: false },
-    );
-    const quotes = result?.quotes ?? [];
-    return NextResponse.json({
-      ok: true,
-      ticker,
-      quoteCount: quotes.length,
-      first: quotes[0] ?? null,
-      last: quotes[quotes.length - 1] ?? null,
-    });
-  } catch (err) {
-    return NextResponse.json({
-      ok: false,
-      ticker,
-      error: err instanceof Error ? err.message : String(err),
-      stack: err instanceof Error ? err.stack?.split('\n').slice(0, 6) : undefined,
-    });
+    try {
+      const result = await yahooFinance.chart(ticker, {
+        period1,
+        period2,
+        interval: '60m',
+      });
+      const quotes = result?.quotes ?? [];
+      results[ticker] = {
+        ok: true,
+        quoteCount: quotes.length,
+        firstDate: quotes[0]?.date ?? null,
+        lastDate: quotes[quotes.length - 1]?.date ?? null,
+        firstClose: quotes[0]?.close ?? null,
+      };
+    } catch (err) {
+      results[ticker] = {
+        ok: false,
+        error: err instanceof Error ? err.message.slice(0, 200) : String(err),
+      };
+    }
   }
+
+  return NextResponse.json(results);
 }
