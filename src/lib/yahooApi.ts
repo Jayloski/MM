@@ -19,16 +19,11 @@ function normalizeTimestamp(unixSec: number, interval: string): string {
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
-export interface YahooBar {
-  date: string;
-  close: number;
-}
-
 export async function fetchYahooChart(
   symbol: string,
   interval: '5m' | '15m' | '60m' | '1d',
   fetchDays: number,
-): Promise<YahooBar[] | null> {
+): Promise<{ date: string; close: number }[] | null> {
   const period2 = Math.floor(Date.now() / 1000);
   const period1 = period2 - fetchDays * 24 * 3600;
 

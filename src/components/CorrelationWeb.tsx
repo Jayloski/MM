@@ -137,10 +137,12 @@ export default function CorrelationWeb({ data, threshold }: Props) {
         d.fx = null;
         d.fy = null;
         if (event.sourceEvent?.currentTarget) {
-          d3.select<SVGGElement, WebNode>(event.sourceEvent.currentTarget as SVGGElement).attr(
-            'cursor',
-            'grab',
-          );
+          try {
+            d3.select<SVGGElement, WebNode>(event.sourceEvent.currentTarget as SVGGElement).attr(
+              'cursor',
+              'grab',
+            );
+          } catch { /* currentTarget not an SVG element — ignore */ }
         }
       });
 
