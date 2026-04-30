@@ -3,38 +3,21 @@ import { NextResponse } from 'next/server';
 export const revalidate = 0;
 
 export async function GET() {
-  const tickers = ['ES=F', 'NQ=F', 'GC=F'];
-  const results: Record<string, unknown> = {};
-
   const mod = await import('yahoo-finance2');
-  const yahooFinance = mod.default;
 
-  for (const ticker of tickers) {
-    const period2 = new Date();
-    const period1 = new Date();
-    period1.setDate(period1.getDate() - 7);
+  // Inspect the module shape
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const m = mod as any;
+  const shape = {
+    modKeys: Object.keys(m),
+    defaultType: typeof m.default,
+    defaultKeys: m.default ? Object.keys(m.default).slice(0, 20) : null,
+    defaultDefaultType: typeof m.default?.default,
+    defaultDefaultKeys: m.default?.default ? Object.keys(m.default.default).slice(0, 20) : null,
+    hasChart: typeof m.chart,
+    defaultHasChart: typeof m.default?.chart,
+    defaultDefaultHasChart: typeof m.default?.default?.chart,
+  };
 
-    try {
-      const result = await yahooFinance.chart(ticker, {
-        period1,
-        period2,
-        interval: '60m',
-      });
-      const quotes = result?.quotes ?? [];
-      results[ticker] = {
-        ok: true,
-        quoteCount: quotes.length,
-        firstDate: quotes[0]?.date ?? null,
-        lastDate: quotes[quotes.length - 1]?.date ?? null,
-        firstClose: quotes[0]?.close ?? null,
-      };
-    } catch (err) {
-      results[ticker] = {
-        ok: false,
-        error: err instanceof Error ? err.message.slice(0, 200) : String(err),
-      };
-    }
-  }
-
-  return NextResponse.json(results);
+  return NextResponse.json(shape);
 }
