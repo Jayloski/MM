@@ -2,43 +2,41 @@ import { NextResponse } from 'next/server';
 
 export const revalidate = 0;
 
-const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-
 export async function GET() {
-  const steps: Record<string, unknown> = {};
+  const results: Record<string, unknown> = {};
 
-  // Step 1: hit Yahoo Finance homepage
+  // Test 1: can we reach anything at all?
   try {
-    const homeRes = await fetch('https://finance.yahoo.com/', {
-      headers: { 'User-Agent': UA },
-      redirect: 'follow',
-    });
-    const cookie = homeRes.headers.get('set-cookie') ?? '';
-    steps.home = { status: homeRes.status, cookieLen: cookie.length, cookieSnippet: cookie.slice(0, 80) };
-
-    // Step 2: get crumb
-    try {
-      const crumbRes = await fetch('https://query2.finance.yahoo.com/v1/test/getcrumb', {
-        headers: { 'User-Agent': UA, Cookie: cookie },
-      });
-      const crumbText = await crumbRes.text();
-      steps.crumb = { status: crumbRes.status, crumb: crumbText.slice(0, 50) };
-
-      // Step 3: fetch chart
-      if (crumbRes.ok && crumbText && !crumbText.includes('<')) {
-        const period2 = Math.floor(Date.now() / 1000);
-        const period1 = period2 - 7 * 24 * 3600;
-        const url = `https://query1.finance.yahoo.com/v8/finance/chart/ES%3DF?interval=60m&period1=${period1}&period2=${period2}&crumb=${encodeURIComponent(crumbText.trim())}`;
-        const chartRes = await fetch(url, { headers: { 'User-Agent': UA, Cookie: cookie } });
-        const body = await chartRes.text();
-        steps.chart = { status: chartRes.status, bodySnippet: body.slice(0, 200) };
-      }
-    } catch (e) {
-      steps.crumbError = e instanceof Error ? e.message : String(e);
-    }
-  } catch (e) {
-    steps.homeError = e instanceof Error ? e.message : String(e);
+    const r = await fetch('https://httpbin.org/get', { headers: { 'User-Agent': 'test' } });
+    results.httpbin = { status: r.status };
+  } catch (e: unknown) {
+    const err = e as Error & { cause?: unknown };
+    results.httpbin = { error: err.message, cause: String(err.cause ?? '') };
   }
 
-  return NextResponse.json(steps);
+  // Test 2: Yahoo Finance homepage
+  try {
+    const r = await fetch('https://finance.yahoo.com/', {
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+      redirect: 'follow',
+    });
+    results.yahoo = { status: r.status };
+  } catch (e: unknown) {
+    const err = e as Error & { cause?: unknown };
+    results.yahoo = { error: err.message, cause: String(err.cause ?? '') };
+  }
+
+  // Test 3: Yahoo Finance query API directly (no auth)
+  try {
+    const r = await fetch('https://query1.finance.yahoo.com/v8/finance/chart/AAPL?interval=1d&range=5d', {
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+    });
+    const text = await r.text();
+    results.yahooQuery = { status: r.status, bodySnippet: text.slice(0, 150) };
+  } catch (e: unknown) {
+    const err = e as Error & { cause?: unknown };
+    results.yahooQuery = { error: err.message, cause: String(err.cause ?? '') };
+  }
+
+  return NextResponse.json(results);
 }
