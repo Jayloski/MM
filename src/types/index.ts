@@ -89,6 +89,11 @@ export interface DivergencePair {
   continuationRate?: number;
   followRate?: number;
   sampleCount?: number;
+  /** Per-bar returns for the chart window (context bars + short window) */
+  recentReturnsA: number[];
+  recentReturnsB: number[];
+  /** How many of the trailing recentReturns[] bars belong to the current short window */
+  shortWindow: number;
 }
 
 export interface DivergenceResponse {

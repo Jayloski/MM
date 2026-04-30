@@ -223,6 +223,12 @@ export async function GET(req: NextRequest) {
       const aAsset = assetMap.get(tA);
       const bAsset = assetMap.get(tB);
 
+      // Chart data: 20 context bars + the current short window
+      const CHART_CONTEXT = 20;
+      const chartDates = histDates.slice(-(CHART_CONTEXT + shortWindow));
+      const recentReturnsA = chartDates.map(d => retA.get(d) ?? 0);
+      const recentReturnsB = chartDates.map(d => retB.get(d) ?? 0);
+
       results.push({
         tickerA: tA,
         tickerB: tB,
@@ -238,6 +244,9 @@ export async function GET(req: NextRequest) {
         continuationRate,
         followRate,
         sampleCount,
+        recentReturnsA,
+        recentReturnsB,
+        shortWindow,
       });
     }
   }
