@@ -1,16 +1,7 @@
 import 'server-only';
+import yahooFinance from 'yahoo-finance2';
 import type { PriceBar } from '@/types';
 import type { TimeframeConfig } from '@/types';
-
-// webpackIgnore tells the bundler to leave this require to Node.js at runtime
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const yf = require(/* webpackIgnore: true */ 'yahoo-finance2');
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const yahooFinance: any = yf.default ?? yf;
-
-try {
-  yahooFinance.suppressNotices?.(['yahooSurvey', 'ripHistorical']);
-} catch { /* ignore */ }
 
 const BATCH_SIZE = 8;
 
@@ -23,11 +14,11 @@ async function fetchOneTicker(
     const period1 = new Date();
     period1.setDate(period1.getDate() - config.fetchDays);
 
-    const result = await yahooFinance.chart(
-      ticker,
-      { period1, period2, interval: config.yfInterval },
-      { validateResult: false },
-    );
+    const result = await yahooFinance.chart(ticker, {
+      period1,
+      period2,
+      interval: config.yfInterval,
+    });
 
     const quotes = result?.quotes ?? [];
     const bars: PriceBar[] = quotes
@@ -39,8 +30,7 @@ async function fetchOneTicker(
       .sort((a, b) => a.date.localeCompare(b.date));
 
     return bars.length > 1 ? bars : null;
-  } catch (err) {
-    console.error(`[fetchPrices] ${ticker}:`, err instanceof Error ? err.message : err);
+  } catch {
     return null;
   }
 }
