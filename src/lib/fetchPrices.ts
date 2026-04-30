@@ -1,5 +1,4 @@
 import 'server-only';
-import yahooFinance from 'yahoo-finance2';
 import type { PriceBar } from '@/types';
 import type { TimeframeConfig } from '@/types';
 
@@ -13,6 +12,9 @@ async function fetchOneTicker(
     const period2 = new Date();
     const period1 = new Date();
     period1.setDate(period1.getDate() - config.fetchDays);
+
+    const mod = await import('yahoo-finance2');
+    const yahooFinance = mod.default;
 
     const result = await yahooFinance.chart(ticker, {
       period1,

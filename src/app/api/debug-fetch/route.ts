@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
-import yahooFinance from 'yahoo-finance2';
 
 export const revalidate = 0;
 
 export async function GET() {
   const tickers = ['ES=F', 'NQ=F', 'GC=F'];
   const results: Record<string, unknown> = {};
+
+  const mod = await import('yahoo-finance2');
+  const yahooFinance = mod.default;
 
   for (const ticker of tickers) {
     const period2 = new Date();
