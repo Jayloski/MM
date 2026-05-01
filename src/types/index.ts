@@ -1,6 +1,14 @@
 import type { SimulationNodeDatum, SimulationLinkDatum } from 'd3';
 
 export type AssetClass = 'futures' | 'forex';
+
+export type SessionName = 'Asian' | 'European' | 'US' | 'EU/US Overlap';
+
+export interface SessionInfo {
+  name: SessionName;
+  startCT: string; // e.g. "8:30 AM"
+  endCT: string;   // e.g. "3:00 PM"
+}
 export type FuturesSubgroup =
   | 'mini_index'
   | 'intl_index'
@@ -24,6 +32,7 @@ export interface Asset {
   label: string;
   assetClass: AssetClass;
   subGroup: Subgroup;
+  sessions: SessionInfo[];
 }
 
 export type Timeframe = '5m' | '15m' | '1h' | '4h' | '1d';
@@ -52,6 +61,8 @@ export interface CorrelationResponse {
   labels: Record<string, string>;
   assetClasses: Record<string, AssetClass>;
   subGroups: Record<string, Subgroup>;
+  sessions: Record<string, SessionInfo[]>;
+  volatility: Record<string, number>;
   /** n×n Pearson matrix; matrix[i][j]; NaN encoded as null */
   matrix: (number | null)[][];
   timeframe: Timeframe;

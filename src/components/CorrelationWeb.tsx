@@ -8,16 +8,21 @@ import { ASSET_CLASS_COLORS } from '@/lib/assets';
 interface Props {
   data: CorrelationResponse;
   threshold: number;
+  selectedTicker?: string | null;
+  onNodeClick?: (ticker: string) => void;
 }
 
-export default function CorrelationWeb({ data, threshold }: Props) {
+export default function CorrelationWeb({ data, threshold, selectedTicker, onNodeClick }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const simRef = useRef<d3.Simulation<WebNode, WebLink> | null>(null);
+  const nodeSelectionRef = useRef<d3.Selection<SVGGElement, WebNode, SVGGElement, unknown> | null>(null);
+  const onNodeClickRef = useRef(onNodeClick);
+  useEffect(() => { onNodeClickRef.current = onNodeClick; }, [onNodeClick]);
 
+  // Main simulation effect — only rebuilds on data or threshold change
   useEffect(() => {
     if (!svgRef.current) return;
 
-    // Stop any running simulation
     simRef.current?.stop();
 
     const svg = d3.select(svgRef.current);
@@ -35,8 +40,6 @@ export default function CorrelationWeb({ data, threshold }: Props) {
       assetClass: data.assetClasses[ticker] as AssetClass,
       subGroup: data.subGroups[ticker],
     }));
-
-    const tickerIndex = new Map(data.tickers.map((t, i) => [t, i]));
 
     // Build links — only above threshold
     const links: WebLink[] = [];
@@ -93,15 +96,17 @@ export default function CorrelationWeb({ data, threshold }: Props) {
       .join('g')
       .attr('cursor', 'grab');
 
+    nodeSelectionRef.current = nodeEl;
+
     const radius = 16;
 
     nodeEl
       .append('circle')
-      .attr('r', radius)
+      .attr('r', d => (d.id === selectedTicker ? radius + 4 : radius))
       .attr('fill', d => ASSET_CLASS_COLORS[d.assetClass] ?? '#888')
       .attr('fill-opacity', 0.9)
-      .attr('stroke', '#0f1117')
-      .attr('stroke-width', 1.5);
+      .attr('stroke', d => (d.id === selectedTicker ? '#ffffff' : '#0f1117'))
+      .attr('stroke-width', d => (d.id === selectedTicker ? 2.5 : 1.5));
 
     nodeEl
       .append('text')
@@ -116,10 +121,13 @@ export default function CorrelationWeb({ data, threshold }: Props) {
     // Tooltip label
     nodeEl.append('title').text(d => d.label);
 
-    // Drag behaviour
+    // Drag behaviour — track wasDragged to distinguish click from drag
+    let wasDragged = false;
+
     const drag = d3
       .drag<SVGGElement, WebNode>()
       .on('start', (event, d) => {
+        wasDragged = false;
         if (!event.active) simulation.alphaTarget(0.3).restart();
         d.fx = d.x;
         d.fy = d.y;
@@ -129,6 +137,7 @@ export default function CorrelationWeb({ data, threshold }: Props) {
         );
       })
       .on('drag', (event, d) => {
+        wasDragged = true;
         d.fx = event.x;
         d.fy = event.y;
       })
@@ -143,6 +152,12 @@ export default function CorrelationWeb({ data, threshold }: Props) {
       });
 
     nodeEl.call(drag as d3.DragBehavior<SVGGElement, WebNode, unknown>);
+
+    // Click handler — fires only when the node was not dragged
+    nodeEl.on('click', (_event: MouseEvent, d: WebNode) => {
+      if (wasDragged) return;
+      onNodeClickRef.current?.(d.id);
+    });
 
     // Force simulation
     const simulation = d3
@@ -204,10 +219,22 @@ export default function CorrelationWeb({ data, threshold }: Props) {
     return () => {
       simulation.stop();
     };
-  }, [data, threshold]);
+  }, [data, threshold]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Highlight effect — updates selection ring without restarting the simulation
+  useEffect(() => {
+    const nodeEl = nodeSelectionRef.current;
+    if (!nodeEl) return;
+    const radius = 16;
+    nodeEl
+      .select('circle')
+      .attr('r', (d: WebNode) => (d.id === selectedTicker ? radius + 4 : radius))
+      .attr('stroke', (d: WebNode) => (d.id === selectedTicker ? '#ffffff' : '#0f1117'))
+      .attr('stroke-width', (d: WebNode) => (d.id === selectedTicker ? 2.5 : 1.5));
+  }, [selectedTicker]);
 
   return (
-    <div className="w-full rounded-lg border border-surface-border bg-surface-raised">
+    <div className="w-full">
       <svg
         ref={svgRef}
         className="block h-[600px] w-full"

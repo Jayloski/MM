@@ -98,6 +98,20 @@ export function pearson(a: number[], b: number[]): number {
 }
 
 /**
+ * Annualized realized volatility from a series of period returns.
+ * barsPerYear: number of bars in a trading year for this timeframe.
+ * Returns a decimal (e.g. 0.15 = 15% annualized vol).
+ */
+export function computeVolatility(returns: number[], barsPerYear: number): number {
+  const clean = returns.filter(r => isFinite(r));
+  const n = clean.length;
+  if (n < 2) return NaN;
+  const mean = clean.reduce((s, r) => s + r, 0) / n;
+  const variance = clean.reduce((s, r) => s + (r - mean) ** 2, 0) / (n - 1);
+  return Math.sqrt(variance) * Math.sqrt(barsPerYear);
+}
+
+/**
  * Build an n×n Pearson correlation matrix from aligned returns.
  * matrix[i][j] = r; matrix[i][i] = 1.
  */

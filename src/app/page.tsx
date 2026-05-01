@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import TimeframeSelector from '@/components/TimeframeSelector';
 import AssetClassFilter from '@/components/AssetClassFilter';
 import ThresholdSlider from '@/components/ThresholdSlider';
+import AssetDetailPanel from '@/components/AssetDetailPanel';
 import type { AssetClass, CorrelationResponse, Timeframe } from '@/types';
 import { ALL_ASSET_CLASSES } from '@/lib/assets';
 
@@ -36,6 +37,7 @@ export default function HomePage() {
   const [data, setData] = useState<CorrelationResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
 
   const fetchData = useCallback(
     async (tf: Timeframe, classes: Set<AssetClass>) => {
@@ -65,6 +67,15 @@ export default function HomePage() {
   useEffect(() => {
     fetchData(timeframe, activeClasses);
   }, [timeframe, activeClasses, fetchData]);
+
+  // Clear selection when data changes (timeframe or class switch)
+  useEffect(() => {
+    setSelectedTicker(null);
+  }, [data]);
+
+  const handleNodeClick = useCallback((ticker: string) => {
+    setSelectedTicker(prev => (prev === ticker ? null : ticker));
+  }, []);
 
   function handleTimeframeChange(tf: Timeframe) {
     setTimeframe(tf);
@@ -149,15 +160,29 @@ export default function HomePage() {
               </div>
             </section>
 
-            {/* Correlation Web */}
+            {/* Correlation Web + Detail Panel */}
             <section>
               <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-500">
                 Correlation Web
                 <span className="ml-3 font-normal normal-case text-slate-600">
-                  — showing pairs with |r| ≥ {threshold.toFixed(2)} · drag nodes · scroll to zoom
+                  — showing pairs with |r| ≥ {threshold.toFixed(2)} · drag nodes · scroll to zoom · click to inspect
                 </span>
               </h2>
-              <CorrelationWeb data={data} threshold={threshold} />
+              <div className="flex overflow-hidden rounded-lg border border-surface-border">
+                <div className="min-w-0 flex-1">
+                  <CorrelationWeb
+                    data={data}
+                    threshold={threshold}
+                    selectedTicker={selectedTicker}
+                    onNodeClick={handleNodeClick}
+                  />
+                </div>
+                <AssetDetailPanel
+                  ticker={selectedTicker}
+                  data={data}
+                  onClose={() => setSelectedTicker(null)}
+                />
+              </div>
             </section>
           </>
         )}

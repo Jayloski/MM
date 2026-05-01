@@ -6,10 +6,19 @@ import {
   resampleBars,
   alignReturns,
   buildCorrelationMatrix,
+  computeVolatility,
 } from '@/lib/correlation';
-import type { Timeframe, AssetClass, CorrelationResponse } from '@/types';
+import type { Timeframe, AssetClass, CorrelationResponse, SessionInfo } from '@/types';
 
 export const revalidate = 300; // 5-minute ISR cache
+
+const BARS_PER_YEAR: Record<Timeframe, number> = {
+  '5m':  252 * 78,
+  '15m': 252 * 26,
+  '1h':  252 * 6.5,
+  '4h':  252 * 6.5 / 4,
+  '1d':  252,
+};
 
 const VALID_TIMEFRAMES = new Set<Timeframe>(['5m', '15m', '1h', '4h', '1d']);
 const VALID_CLASSES = new Set<AssetClass>(ALL_ASSET_CLASSES);
@@ -68,11 +77,23 @@ export async function GET(req: NextRequest) {
   const aligned = alignReturns(returnMaps, config.lookbackBars);
   const matrix = buildCorrelationMatrix(availableTickers, aligned);
 
+  // Compute annualized volatility from aligned returns
+  const barsPerYear = BARS_PER_YEAR[timeframe];
+  const volatility: Record<string, number> = {};
+  for (const ticker of availableTickers) {
+    const returns = aligned.get(ticker) ?? [];
+    const vol = computeVolatility(returns, barsPerYear);
+    if (isFinite(vol)) {
+      volatility[ticker] = parseFloat(vol.toFixed(6));
+    }
+  }
+
   // Build lookup maps
   const assetMap = new Map(assets.map(a => [a.ticker, a]));
   const labels: Record<string, string> = {};
   const assetClasses: Record<string, AssetClass> = {};
   const subGroups: Record<string, string> = {};
+  const sessions: Record<string, SessionInfo[]> = {};
 
   for (const ticker of availableTickers) {
     const asset = assetMap.get(ticker);
@@ -80,6 +101,7 @@ export async function GET(req: NextRequest) {
       labels[ticker] = asset.label;
       assetClasses[ticker] = asset.assetClass;
       subGroups[ticker] = asset.subGroup;
+      sessions[ticker] = asset.sessions;
     }
   }
 
@@ -88,6 +110,8 @@ export async function GET(req: NextRequest) {
     labels,
     assetClasses,
     subGroups: subGroups as CorrelationResponse['subGroups'],
+    sessions,
+    volatility,
     matrix,
     timeframe,
     fetchedAt: new Date().toISOString(),
