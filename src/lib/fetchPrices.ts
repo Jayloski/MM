@@ -35,11 +35,16 @@ async function fetchOneTicker(
     const timestamps: number[] = result.timestamp ?? [];
     const closes: (number | null)[] = result.indicators?.quote?.[0]?.close ?? [];
 
+    // For daily bars, normalize to YYYY-MM-DD so assets from different
+    // exchanges (different market-open times) align on the same calendar date.
+    const isDaily = config.yfInterval === '1d';
+
     const bars: PriceBar[] = [];
     for (let i = 0; i < timestamps.length; i++) {
       const close = closes[i];
       if (close != null && isFinite(close)) {
-        bars.push({ date: new Date(timestamps[i] * 1000).toISOString(), close });
+        const iso = new Date(timestamps[i] * 1000).toISOString();
+        bars.push({ date: isDaily ? iso.slice(0, 10) : iso, close });
       }
     }
 
