@@ -98,6 +98,17 @@ export function pearson(a: number[], b: number[]): number {
 }
 
 /**
+ * Annualized volatility (std dev of returns × sqrt(barsPerYear)).
+ */
+export function computeVolatility(returns: number[], barsPerYear: number): number {
+  const n = returns.length;
+  if (n < 2) return NaN;
+  const mean = returns.reduce((s, r) => s + r, 0) / n;
+  const variance = returns.reduce((s, r) => s + (r - mean) ** 2, 0) / (n - 1);
+  return Math.sqrt(variance * barsPerYear);
+}
+
+/**
  * Build an n×n Pearson correlation matrix using pairwise date intersection.
  * Each pair independently intersects its own date keys, avoiding the global
  * intersection collapse that occurs with cross-asset intraday data.

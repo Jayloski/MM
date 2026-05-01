@@ -19,11 +19,20 @@ export type ForexSubgroup =
 
 export type Subgroup = FuturesSubgroup | ForexSubgroup;
 
+export type SessionName = 'Asian' | 'European' | 'US' | 'EU/US Overlap';
+
+export interface SessionInfo {
+  name: SessionName;
+  startCT: string;
+  endCT: string;
+}
+
 export interface Asset {
   ticker: string;
   label: string;
   assetClass: AssetClass;
   subGroup: Subgroup;
+  sessions: SessionInfo[];
 }
 
 export type Timeframe = '5m' | '15m' | '1h' | '4h' | '1d';
@@ -52,6 +61,8 @@ export interface CorrelationResponse {
   labels: Record<string, string>;
   assetClasses: Record<string, AssetClass>;
   subGroups: Record<string, Subgroup>;
+  sessions: Record<string, SessionInfo[]>;
+  volatility: Record<string, number>;
   /** n×n Pearson matrix; matrix[i][j]; NaN encoded as null */
   matrix: (number | null)[][];
   timeframe: Timeframe;

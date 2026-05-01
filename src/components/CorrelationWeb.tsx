@@ -4,16 +4,11 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import * as d3 from 'd3';
 import type { CorrelationResponse, AssetClass, WebNode, WebLink } from '@/types';
 import { ASSET_CLASS_COLORS } from '@/lib/assets';
+import AssetDetailPanel from './AssetDetailPanel';
 
 interface Props {
   data: CorrelationResponse;
   threshold: number;
-}
-
-interface CorrelatedNeighbor {
-  id: string;
-  label: string;
-  r: number;
 }
 
 export default function CorrelationWeb({ data, threshold }: Props) {
@@ -27,20 +22,7 @@ export default function CorrelationWeb({ data, threshold }: Props) {
   // Keep click handler ref fresh so D3 closure never goes stale
   onClickRef.current = setSelectedId;
 
-  // Derive panel data
-  const selectedLabel = selectedId ? (data.labels[selectedId] ?? selectedId) : null;
-  const neighbors: CorrelatedNeighbor[] = selectedId
-    ? (() => {
-        const idx = data.tickers.indexOf(selectedId);
-        if (idx === -1) return [];
-        return data.tickers
-          .map((t, j) => ({ id: t, label: data.labels[t] ?? t, r: data.matrix[idx][j] as number }))
-          .filter(n => n.id !== selectedId && n.r != null && isFinite(n.r))
-          .sort((a, b) => Math.abs(b.r) - Math.abs(a.r));
-      })()
-    : [];
-
-  const handleNeighborClick = useCallback((id: string) => setSelectedId(id), []);
+  const handleCorrelationClick = useCallback((id: string) => setSelectedId(id), []);
 
   // Main simulation — only rebuilds when data or threshold changes
   useEffect(() => {
@@ -204,56 +186,14 @@ export default function CorrelationWeb({ data, threshold }: Props) {
         />
       </div>
 
-      {/* Node detail panel */}
+      {/* Asset detail panel */}
       {selectedId && (
-        <div className="w-64 shrink-0 rounded-lg border border-surface-border bg-surface-raised">
-          <div className="flex items-center justify-between border-b border-surface-border px-4 py-3">
-            <div>
-              <div className="text-xs text-slate-500 uppercase tracking-wider">Selected</div>
-              <div className="mt-0.5 font-semibold text-white text-sm">{selectedLabel}</div>
-            </div>
-            <button
-              onClick={() => setSelectedId(null)}
-              className="text-slate-500 hover:text-slate-200 text-lg leading-none"
-              aria-label="Close"
-            >
-              ×
-            </button>
-          </div>
-
-          <div className="overflow-y-auto" style={{ maxHeight: 540 }}>
-            <div className="px-4 py-2 text-xs text-slate-600 uppercase tracking-wider">
-              All correlations
-            </div>
-            {neighbors.map(nb => {
-              const isPos    = nb.r >= 0;
-              const absR     = Math.abs(nb.r);
-              const barColor = isPos ? '#60a5fa' : '#f87171';
-              return (
-                <button
-                  key={nb.id}
-                  onClick={() => handleNeighborClick(nb.id)}
-                  className="w-full px-4 py-2 text-left hover:bg-white/5 transition-colors group"
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs text-slate-300 group-hover:text-white transition-colors">
-                      {nb.label}
-                    </span>
-                    <span className="font-mono text-xs font-semibold" style={{ color: barColor }}>
-                      {nb.r >= 0 ? '+' : ''}{nb.r.toFixed(2)}
-                    </span>
-                  </div>
-                  <div className="h-0.5 w-full rounded-full bg-white/5">
-                    <div
-                      className="h-full rounded-full"
-                      style={{ width: `${absR * 100}%`, background: barColor, opacity: 0.6 }}
-                    />
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        <AssetDetailPanel
+          ticker={selectedId}
+          data={data}
+          onClose={() => setSelectedId(null)}
+          onCorrelationClick={handleCorrelationClick}
+        />
       )}
     </div>
   );

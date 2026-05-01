@@ -5,8 +5,17 @@ import {
   computeReturns,
   resampleBars,
   buildCorrelationMatrix,
+  computeVolatility,
 } from '@/lib/correlation';
-import type { Timeframe, AssetClass, CorrelationResponse } from '@/types';
+import type { Timeframe, AssetClass, CorrelationResponse, SessionInfo } from '@/types';
+
+const BARS_PER_YEAR: Record<Timeframe, number> = {
+  '5m':  252 * 78,
+  '15m': 252 * 26,
+  '1h':  252 * 6.5,
+  '4h':  252 * 6.5 / 4,
+  '1d':  252,
+};
 
 export const revalidate = 300; // 5-minute ISR cache
 
@@ -66,11 +75,21 @@ export async function GET(req: NextRequest) {
   // Build matrix using pairwise date intersection per pair
   const matrix = buildCorrelationMatrix(availableTickers, returnMaps, config.lookbackBars);
 
+  // Compute annualized volatility per ticker
+  const barsPerYear = BARS_PER_YEAR[timeframe];
+  const volatility: Record<string, number> = {};
+  for (const ticker of availableTickers) {
+    const returns = Array.from(returnMaps.get(ticker)!.values()).slice(-config.lookbackBars);
+    const vol = computeVolatility(returns, barsPerYear);
+    if (isFinite(vol)) volatility[ticker] = parseFloat(vol.toFixed(6));
+  }
+
   // Build lookup maps
   const assetMap = new Map(assets.map(a => [a.ticker, a]));
   const labels: Record<string, string> = {};
   const assetClasses: Record<string, AssetClass> = {};
   const subGroups: Record<string, string> = {};
+  const sessions: Record<string, SessionInfo[]> = {};
 
   for (const ticker of availableTickers) {
     const asset = assetMap.get(ticker);
@@ -78,6 +97,7 @@ export async function GET(req: NextRequest) {
       labels[ticker] = asset.label;
       assetClasses[ticker] = asset.assetClass;
       subGroups[ticker] = asset.subGroup;
+      sessions[ticker] = asset.sessions;
     }
   }
 
@@ -86,6 +106,8 @@ export async function GET(req: NextRequest) {
     labels,
     assetClasses,
     subGroups: subGroups as CorrelationResponse['subGroups'],
+    sessions,
+    volatility,
     matrix,
     timeframe,
     fetchedAt: new Date().toISOString(),
