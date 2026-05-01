@@ -4,8 +4,7 @@ import { fetchPrices } from '@/lib/fetchPrices';
 import {
   computeReturns,
   resampleBars,
-  alignReturns,
-  buildCorrelationMatrix,
+  buildCorrelationMatrixPairwise,
   computeVolatility,
 } from '@/lib/correlation';
 import type { Timeframe, AssetClass, CorrelationResponse, SessionInfo } from '@/types';
@@ -73,15 +72,17 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // Align returns and build matrix
-  const aligned = alignReturns(returnMaps, config.lookbackBars);
-  const matrix = buildCorrelationMatrix(availableTickers, aligned);
+  // Build matrix using pairwise alignment (each pair finds its own shared timestamps).
+  // This prevents the global intersection from collapsing when mixing assets with
+  // different trading hours (e.g. US equity futures 6.5h/day vs forex 24h/day).
+  const matrix = buildCorrelationMatrixPairwise(availableTickers, returnMaps, config.lookbackBars);
 
-  // Compute annualized volatility from aligned returns
+  // Compute annualized volatility from each ticker's own return series
   const barsPerYear = BARS_PER_YEAR[timeframe];
   const volatility: Record<string, number> = {};
   for (const ticker of availableTickers) {
-    const returns = aligned.get(ticker) ?? [];
+    const retMap = returnMaps.get(ticker)!;
+    const returns = Array.from(retMap.values()).slice(-config.lookbackBars);
     const vol = computeVolatility(returns, barsPerYear);
     if (isFinite(vol)) {
       volatility[ticker] = parseFloat(vol.toFixed(6));

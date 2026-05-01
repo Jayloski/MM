@@ -138,3 +138,43 @@ export function buildCorrelationMatrix(
 
   return matrix;
 }
+
+/**
+ * Build an n×n Pearson correlation matrix using pairwise alignment.
+ * Each pair finds its own shared timestamps, avoiding the problem of a
+ * global intersection collapsing to near-zero for mixed-session assets
+ * (e.g. US equity futures trading 6.5h/day vs forex trading 24h/day).
+ */
+export function buildCorrelationMatrixPairwise(
+  tickers: string[],
+  returnMaps: Map<string, Map<string, number>>,
+  lookbackBars: number,
+): (number | null)[][] {
+  const n = tickers.length;
+  const matrix: (number | null)[][] = Array.from({ length: n }, () =>
+    new Array<number | null>(n).fill(null),
+  );
+
+  for (let i = 0; i < n; i++) {
+    matrix[i][i] = 1;
+    const mapA = returnMaps.get(tickers[i]);
+    if (!mapA) continue;
+    for (let j = i + 1; j < n; j++) {
+      const mapB = returnMaps.get(tickers[j]);
+      if (!mapB) continue;
+      const sharedDates = Array.from(mapA.keys())
+        .filter(d => mapB.has(d))
+        .sort()
+        .slice(-lookbackBars);
+      if (sharedDates.length < 2) continue;
+      const a = sharedDates.map(d => mapA.get(d)!);
+      const b = sharedDates.map(d => mapB.get(d)!);
+      const r = pearson(a, b);
+      const val = isFinite(r) ? parseFloat(r.toFixed(4)) : null;
+      matrix[i][j] = val;
+      matrix[j][i] = val;
+    }
+  }
+
+  return matrix;
+}
