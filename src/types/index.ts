@@ -19,11 +19,20 @@ export type ForexSubgroup =
 
 export type Subgroup = FuturesSubgroup | ForexSubgroup;
 
+export type SessionName = 'Asian' | 'European' | 'US' | 'EU/US Overlap';
+
+export interface SessionInfo {
+  name: SessionName;
+  startCT: string;
+  endCT: string;
+}
+
 export interface Asset {
   ticker: string;
   label: string;
   assetClass: AssetClass;
   subGroup: Subgroup;
+  sessions: SessionInfo[];
 }
 
 export type Timeframe = '5m' | '15m' | '1h' | '4h' | '1d';
@@ -52,6 +61,8 @@ export interface CorrelationResponse {
   labels: Record<string, string>;
   assetClasses: Record<string, AssetClass>;
   subGroups: Record<string, Subgroup>;
+  sessions: Record<string, SessionInfo[]>;
+  volatility: Record<string, number>;
   /** n×n Pearson matrix; matrix[i][j]; NaN encoded as null */
   matrix: (number | null)[][];
   timeframe: Timeframe;
@@ -72,4 +83,33 @@ export interface WebLink extends SimulationLinkDatum<WebNode> {
   target: string | WebNode;
   r: number;
   absR: number;
+}
+
+export interface DivergencePair {
+  tickerA: string;
+  tickerB: string;
+  aLabel: string;
+  bLabel: string;
+  longR: number;
+  cumA: number;
+  cumB: number;
+  momentumZA: number;
+  momentumZB: number;
+  spreadZ: number;
+  moverIsA?: boolean;
+  continuationRate?: number;
+  followRate?: number;
+  sampleCount?: number;
+  /** Per-bar returns for the chart window (context bars + short window) */
+  recentReturnsA: number[];
+  recentReturnsB: number[];
+  /** How many of the trailing recentReturns[] bars belong to the current short window */
+  shortWindow: number;
+}
+
+export interface DivergenceResponse {
+  pairs: DivergencePair[];
+  timeframe: Timeframe;
+  fetchedAt: string;
+  skipped: string[];
 }

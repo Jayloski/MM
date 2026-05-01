@@ -98,12 +98,25 @@ export function pearson(a: number[], b: number[]): number {
 }
 
 /**
- * Build an n×n Pearson correlation matrix from aligned returns.
- * matrix[i][j] = r; matrix[i][i] = 1.
+ * Annualized volatility (std dev of returns × sqrt(barsPerYear)).
+ */
+export function computeVolatility(returns: number[], barsPerYear: number): number {
+  const n = returns.length;
+  if (n < 2) return NaN;
+  const mean = returns.reduce((s, r) => s + r, 0) / n;
+  const variance = returns.reduce((s, r) => s + (r - mean) ** 2, 0) / (n - 1);
+  return Math.sqrt(variance * barsPerYear);
+}
+
+/**
+ * Build an n×n Pearson correlation matrix using pairwise date intersection.
+ * Each pair independently intersects its own date keys, avoiding the global
+ * intersection collapse that occurs with cross-asset intraday data.
  */
 export function buildCorrelationMatrix(
   tickers: string[],
-  aligned: Map<string, number[]>,
+  returnMaps: Map<string, Map<string, number>>,
+  lookbackBars: number,
 ): (number | null)[][] {
   const n = tickers.length;
   const matrix: (number | null)[][] = Array.from({ length: n }, () =>
@@ -112,9 +125,22 @@ export function buildCorrelationMatrix(
 
   for (let i = 0; i < n; i++) {
     matrix[i][i] = 1;
-    const a = aligned.get(tickers[i]) ?? [];
+    const mapA = returnMaps.get(tickers[i]);
+    if (!mapA) continue;
     for (let j = i + 1; j < n; j++) {
-      const b = aligned.get(tickers[j]) ?? [];
+      const mapB = returnMaps.get(tickers[j]);
+      if (!mapB) continue;
+
+      // Pairwise intersection of date keys
+      const pairDates = Array.from(mapA.keys())
+        .filter(d => mapB.has(d))
+        .sort()
+        .slice(-lookbackBars);
+
+      if (pairDates.length < 2) continue;
+
+      const a = pairDates.map(d => mapA.get(d)!);
+      const b = pairDates.map(d => mapB.get(d)!);
       const r = pearson(a, b);
       const val = isFinite(r) ? parseFloat(r.toFixed(4)) : null;
       matrix[i][j] = val;

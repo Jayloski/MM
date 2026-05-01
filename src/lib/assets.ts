@@ -1,74 +1,90 @@
-import type { Asset, AssetClass, Subgroup, Timeframe, TimeframeConfig } from '@/types';
+import type { Asset, AssetClass, SessionInfo, Subgroup, Timeframe, TimeframeConfig } from '@/types';
+
+// ── Session building blocks (Central Time) ───────────────────────────────────
+const ASIAN_TOKYO:  SessionInfo = { name: 'Asian',         startCT: '7:00 PM',  endCT: '4:00 AM'  };
+const ASIAN_NIKKEI: SessionInfo = { name: 'Asian',         startCT: '7:00 PM',  endCT: '2:00 AM'  };
+const ASIAN_NIFTY:  SessionInfo = { name: 'Asian',         startCT: '9:15 PM',  endCT: '3:30 AM'  };
+const EUR_LONDON:   SessionInfo = { name: 'European',      startCT: '2:00 AM',  endCT: '11:00 AM' };
+const EUR_CAC:      SessionInfo = { name: 'European',      startCT: '2:00 AM',  endCT: '11:30 AM' };
+const EUR_METALS:   SessionInfo = { name: 'European',      startCT: '7:00 AM',  endCT: '11:00 AM' };
+const US_EQUITIES:  SessionInfo = { name: 'US',            startCT: '8:30 AM',  endCT: '3:15 PM'  };
+const US_BONDS:     SessionInfo = { name: 'US',            startCT: '7:20 AM',  endCT: '2:00 PM'  };
+const US_METALS:    SessionInfo = { name: 'US',            startCT: '8:20 AM',  endCT: '1:30 PM'  };
+const US_COPPER:    SessionInfo = { name: 'US',            startCT: '8:30 AM',  endCT: '1:00 PM'  };
+const US_ENERGY:    SessionInfo = { name: 'US',            startCT: '8:30 AM',  endCT: '2:30 PM'  };
+const US_GRAINS:    SessionInfo = { name: 'US',            startCT: '9:30 AM',  endCT: '2:00 PM'  };
+const US_DXY:       SessionInfo = { name: 'US',            startCT: '8:30 AM',  endCT: '3:00 PM'  };
+const OVERLAP:      SessionInfo = { name: 'EU/US Overlap', startCT: '8:30 AM',  endCT: '11:00 AM' };
 
 export const ASSETS: Asset[] = [
   // ── FUTURES ─────────────────────────────────────────────────────────────
   // Mini Index
-  { ticker: 'ES=F',     label: 'S&P 500',       assetClass: 'futures', subGroup: 'mini_index' },
-  { ticker: 'NQ=F',     label: 'Nasdaq 100',    assetClass: 'futures', subGroup: 'mini_index' },
-  { ticker: 'RTY=F',    label: 'Russell 2000',  assetClass: 'futures', subGroup: 'mini_index' },
+  { ticker: 'ES=F',     label: 'S&P 500',       assetClass: 'futures', subGroup: 'mini_index', sessions: [US_EQUITIES] },
+  { ticker: 'NQ=F',     label: 'Nasdaq 100',    assetClass: 'futures', subGroup: 'mini_index', sessions: [US_EQUITIES] },
+  { ticker: 'RTY=F',    label: 'Russell 2000',  assetClass: 'futures', subGroup: 'mini_index', sessions: [US_EQUITIES] },
   // Intl Index
-  { ticker: 'DX-Y.NYB', label: 'DXY',           assetClass: 'futures', subGroup: 'intl_index' },
-  { ticker: '^FCHI',    label: 'CAC 40',         assetClass: 'futures', subGroup: 'intl_index' },
-  { ticker: 'USDJPY=X', label: 'JPY Index',      assetClass: 'futures', subGroup: 'intl_index' },
-  { ticker: '^NSEI',    label: 'Nifty 50',       assetClass: 'futures', subGroup: 'intl_index' },
-  { ticker: 'NKD=F',    label: 'Nikkei Fut',     assetClass: 'futures', subGroup: 'intl_index' },
+  { ticker: 'DX-Y.NYB', label: 'DXY',           assetClass: 'futures', subGroup: 'intl_index', sessions: [EUR_LONDON, US_DXY] },
+  { ticker: '^FCHI',    label: 'CAC 40',         assetClass: 'futures', subGroup: 'intl_index', sessions: [EUR_CAC] },
+  { ticker: '^NSEI',    label: 'Nifty 50',       assetClass: 'futures', subGroup: 'intl_index', sessions: [ASIAN_NIFTY] },
+  { ticker: 'NKD=F',    label: 'Nikkei Fut',     assetClass: 'futures', subGroup: 'intl_index', sessions: [ASIAN_NIKKEI] },
   // Financials / Bond Futures
-  { ticker: 'UB=F',     label: 'Ultra Bond',    assetClass: 'futures', subGroup: 'financials' },
-  { ticker: 'ZB=F',     label: '30yr T-Bond',   assetClass: 'futures', subGroup: 'financials' },
-  { ticker: 'ZF=F',     label: '5yr T-Note',    assetClass: 'futures', subGroup: 'financials' },
-  { ticker: 'ZN=F',     label: '10yr T-Note',   assetClass: 'futures', subGroup: 'financials' },
+  { ticker: 'UB=F',     label: 'Ultra Bond',    assetClass: 'futures', subGroup: 'financials', sessions: [US_BONDS] },
+  { ticker: 'ZB=F',     label: '30yr T-Bond',   assetClass: 'futures', subGroup: 'financials', sessions: [US_BONDS] },
+  { ticker: 'ZF=F',     label: '5yr T-Note',    assetClass: 'futures', subGroup: 'financials', sessions: [US_BONDS] },
+  { ticker: 'ZN=F',     label: '10yr T-Note',   assetClass: 'futures', subGroup: 'financials', sessions: [US_BONDS] },
   // Energy
-  { ticker: 'CL=F',     label: 'Crude Oil WTI', assetClass: 'futures', subGroup: 'energy' },
-  { ticker: 'HO=F',     label: 'Heating Oil',   assetClass: 'futures', subGroup: 'energy' },
-  { ticker: 'NG=F',     label: 'Natural Gas',   assetClass: 'futures', subGroup: 'energy' },
-  { ticker: 'RB=F',     label: 'RBOB Gasoline', assetClass: 'futures', subGroup: 'energy' },
+  { ticker: 'CL=F',     label: 'Crude Oil WTI', assetClass: 'futures', subGroup: 'energy',     sessions: [EUR_LONDON, US_ENERGY] },
+  { ticker: 'HO=F',     label: 'Heating Oil',   assetClass: 'futures', subGroup: 'energy',     sessions: [EUR_LONDON, US_ENERGY] },
+  { ticker: 'NG=F',     label: 'Natural Gas',   assetClass: 'futures', subGroup: 'energy',     sessions: [EUR_LONDON, US_ENERGY] },
+  { ticker: 'RB=F',     label: 'RBOB Gasoline', assetClass: 'futures', subGroup: 'energy',     sessions: [EUR_LONDON, US_ENERGY] },
   // Metals
-  { ticker: 'GC=F',     label: 'Gold',          assetClass: 'futures', subGroup: 'metals' },
-  { ticker: 'SI=F',     label: 'Silver',        assetClass: 'futures', subGroup: 'metals' },
-  { ticker: 'HG=F',     label: 'Copper',        assetClass: 'futures', subGroup: 'metals' },
-  { ticker: 'PL=F',     label: 'Platinum',      assetClass: 'futures', subGroup: 'metals' },
+  { ticker: 'GC=F',     label: 'Gold',          assetClass: 'futures', subGroup: 'metals',     sessions: [EUR_METALS, US_METALS] },
+  { ticker: 'SI=F',     label: 'Silver',        assetClass: 'futures', subGroup: 'metals',     sessions: [EUR_METALS, US_METALS] },
+  { ticker: 'HG=F',     label: 'Copper',        assetClass: 'futures', subGroup: 'metals',     sessions: [US_COPPER] },
+  { ticker: 'PL=F',     label: 'Platinum',      assetClass: 'futures', subGroup: 'metals',     sessions: [US_COPPER] },
   // Grains
-  { ticker: 'KE=F',     label: 'KC Wheat',      assetClass: 'futures', subGroup: 'grains' },
-  { ticker: 'ZC=F',     label: 'Corn',          assetClass: 'futures', subGroup: 'grains' },
-  { ticker: 'ZR=F',     label: 'Rough Rice',    assetClass: 'futures', subGroup: 'grains' },
-  { ticker: 'ZS=F',     label: 'Soybeans',      assetClass: 'futures', subGroup: 'grains' },
-  { ticker: 'ZL=F',     label: 'Soybean Oil',   assetClass: 'futures', subGroup: 'grains' },
-  { ticker: 'ZW=F',     label: 'CBOT Wheat',    assetClass: 'futures', subGroup: 'grains' },
+  { ticker: 'KE=F',     label: 'KC Wheat',      assetClass: 'futures', subGroup: 'grains',     sessions: [US_GRAINS] },
+  { ticker: 'ZC=F',     label: 'Corn',          assetClass: 'futures', subGroup: 'grains',     sessions: [US_GRAINS] },
+  { ticker: 'ZR=F',     label: 'Rough Rice',    assetClass: 'futures', subGroup: 'grains',     sessions: [US_GRAINS] },
+  { ticker: 'ZS=F',     label: 'Soybeans',      assetClass: 'futures', subGroup: 'grains',     sessions: [US_GRAINS] },
+  { ticker: 'ZL=F',     label: 'Soybean Oil',   assetClass: 'futures', subGroup: 'grains',     sessions: [US_GRAINS] },
+  { ticker: 'ZW=F',     label: 'CBOT Wheat',    assetClass: 'futures', subGroup: 'grains',     sessions: [US_GRAINS] },
 
   // ── FOREX ────────────────────────────────────────────────────────────────
   // JPY Crosses
-  { ticker: 'CADJPY=X', label: 'CAD/JPY', assetClass: 'forex', subGroup: 'jpy_crosses' },
-  { ticker: 'CHFJPY=X', label: 'CHF/JPY', assetClass: 'forex', subGroup: 'jpy_crosses' },
+  { ticker: 'USDJPY=X', label: 'USD/JPY', assetClass: 'forex', subGroup: 'jpy_crosses', sessions: [ASIAN_TOKYO, EUR_LONDON] },
+  { ticker: 'CADJPY=X', label: 'CAD/JPY', assetClass: 'forex', subGroup: 'jpy_crosses', sessions: [ASIAN_TOKYO, EUR_LONDON] },
+  { ticker: 'CHFJPY=X', label: 'CHF/JPY', assetClass: 'forex', subGroup: 'jpy_crosses', sessions: [ASIAN_TOKYO, EUR_LONDON] },
   // Trades
-  { ticker: 'EURAUD=X', label: 'EUR/AUD', assetClass: 'forex', subGroup: 'trades' },
-  { ticker: 'EURJPY=X', label: 'EUR/JPY', assetClass: 'forex', subGroup: 'trades' },
-  { ticker: 'GBPJPY=X', label: 'GBP/JPY', assetClass: 'forex', subGroup: 'trades' },
-  { ticker: 'EURUSD=X', label: 'EUR/USD', assetClass: 'forex', subGroup: 'trades' },
-  { ticker: 'GBPUSD=X', label: 'GBP/USD', assetClass: 'forex', subGroup: 'trades' },
-  { ticker: 'NZDUSD=X', label: 'NZD/USD', assetClass: 'forex', subGroup: 'trades' },
+  { ticker: 'EURAUD=X', label: 'EUR/AUD', assetClass: 'forex', subGroup: 'trades', sessions: [EUR_LONDON, OVERLAP] },
+  { ticker: 'EURJPY=X', label: 'EUR/JPY', assetClass: 'forex', subGroup: 'trades', sessions: [ASIAN_TOKYO, EUR_LONDON] },
+  { ticker: 'GBPJPY=X', label: 'GBP/JPY', assetClass: 'forex', subGroup: 'trades', sessions: [ASIAN_TOKYO, EUR_LONDON] },
+  { ticker: 'EURUSD=X', label: 'EUR/USD', assetClass: 'forex', subGroup: 'trades', sessions: [EUR_LONDON, OVERLAP] },
+  { ticker: 'GBPUSD=X', label: 'GBP/USD', assetClass: 'forex', subGroup: 'trades', sessions: [EUR_LONDON, OVERLAP] },
+  { ticker: 'NZDUSD=X', label: 'NZD/USD', assetClass: 'forex', subGroup: 'trades', sessions: [ASIAN_TOKYO, EUR_LONDON] },
   // USD
-  { ticker: 'USDCAD=X', label: 'USD/CAD', assetClass: 'forex', subGroup: 'usd' },
-  { ticker: 'USDCHF=X', label: 'USD/CHF', assetClass: 'forex', subGroup: 'usd' },
+  { ticker: 'USDCAD=X', label: 'USD/CAD', assetClass: 'forex', subGroup: 'usd', sessions: [EUR_LONDON, US_DXY] },
+  { ticker: 'USDCHF=X', label: 'USD/CHF', assetClass: 'forex', subGroup: 'usd', sessions: [EUR_LONDON, US_DXY] },
   // NZD
-  { ticker: 'NZDCHF=X', label: 'NZD/CHF', assetClass: 'forex', subGroup: 'nzd' },
-  { ticker: 'NZDJPY=X', label: 'NZD/JPY', assetClass: 'forex', subGroup: 'nzd' },
-  { ticker: 'NZDCAD=X', label: 'NZD/CAD', assetClass: 'forex', subGroup: 'nzd' },
+  { ticker: 'NZDCHF=X', label: 'NZD/CHF', assetClass: 'forex', subGroup: 'nzd', sessions: [ASIAN_TOKYO, EUR_LONDON] },
+  { ticker: 'NZDJPY=X', label: 'NZD/JPY', assetClass: 'forex', subGroup: 'nzd', sessions: [ASIAN_TOKYO, EUR_LONDON] },
+  { ticker: 'NZDCAD=X', label: 'NZD/CAD', assetClass: 'forex', subGroup: 'nzd', sessions: [ASIAN_TOKYO, EUR_LONDON] },
   // AUD
-  { ticker: 'AUDCHF=X', label: 'AUD/CHF', assetClass: 'forex', subGroup: 'aud' },
-  { ticker: 'AUDJPY=X', label: 'AUD/JPY', assetClass: 'forex', subGroup: 'aud' },
-  { ticker: 'AUDUSD=X', label: 'AUD/USD', assetClass: 'forex', subGroup: 'aud' },
-  { ticker: 'AUDCAD=X', label: 'AUD/CAD', assetClass: 'forex', subGroup: 'aud' },
-  { ticker: 'AUDNZD=X', label: 'AUD/NZD', assetClass: 'forex', subGroup: 'aud' },
+  { ticker: 'AUDCHF=X', label: 'AUD/CHF', assetClass: 'forex', subGroup: 'aud', sessions: [ASIAN_TOKYO, EUR_LONDON] },
+  { ticker: 'AUDJPY=X', label: 'AUD/JPY', assetClass: 'forex', subGroup: 'aud', sessions: [ASIAN_TOKYO, EUR_LONDON] },
+  { ticker: 'AUDUSD=X', label: 'AUD/USD', assetClass: 'forex', subGroup: 'aud', sessions: [ASIAN_TOKYO, EUR_LONDON] },
+  { ticker: 'AUDCAD=X', label: 'AUD/CAD', assetClass: 'forex', subGroup: 'aud', sessions: [ASIAN_TOKYO, EUR_LONDON] },
+  { ticker: 'AUDNZD=X', label: 'AUD/NZD', assetClass: 'forex', subGroup: 'aud', sessions: [ASIAN_TOKYO, EUR_LONDON] },
   // GBP
-  { ticker: 'GBPAUD=X', label: 'GBP/AUD', assetClass: 'forex', subGroup: 'gbp' },
-  { ticker: 'GBPNZD=X', label: 'GBP/NZD', assetClass: 'forex', subGroup: 'gbp' },
-  { ticker: 'GBPCHF=X', label: 'GBP/CHF', assetClass: 'forex', subGroup: 'gbp' },
-  { ticker: 'GBPCAD=X', label: 'GBP/CAD', assetClass: 'forex', subGroup: 'gbp' },
+  { ticker: 'GBPAUD=X', label: 'GBP/AUD', assetClass: 'forex', subGroup: 'gbp', sessions: [EUR_LONDON, OVERLAP] },
+  { ticker: 'GBPNZD=X', label: 'GBP/NZD', assetClass: 'forex', subGroup: 'gbp', sessions: [EUR_LONDON, OVERLAP] },
+  { ticker: 'GBPCHF=X', label: 'GBP/CHF', assetClass: 'forex', subGroup: 'gbp', sessions: [EUR_LONDON, OVERLAP] },
+  { ticker: 'GBPCAD=X', label: 'GBP/CAD', assetClass: 'forex', subGroup: 'gbp', sessions: [EUR_LONDON, OVERLAP] },
   // EUR
-  { ticker: 'EURNZD=X', label: 'EUR/NZD', assetClass: 'forex', subGroup: 'eur' },
-  { ticker: 'EURCAD=X', label: 'EUR/CAD', assetClass: 'forex', subGroup: 'eur' },
-  { ticker: 'EURGBP=X', label: 'EUR/GBP', assetClass: 'forex', subGroup: 'eur' },
-  { ticker: 'EURCHF=X', label: 'EUR/CHF', assetClass: 'forex', subGroup: 'eur' },
+  { ticker: 'EURNZD=X', label: 'EUR/NZD', assetClass: 'forex', subGroup: 'eur', sessions: [EUR_LONDON, OVERLAP] },
+  { ticker: 'EURCAD=X', label: 'EUR/CAD', assetClass: 'forex', subGroup: 'eur', sessions: [EUR_LONDON, OVERLAP] },
+  { ticker: 'EURGBP=X', label: 'EUR/GBP', assetClass: 'forex', subGroup: 'eur', sessions: [EUR_LONDON, OVERLAP] },
+  { ticker: 'EURCHF=X', label: 'EUR/CHF', assetClass: 'forex', subGroup: 'eur', sessions: [EUR_LONDON, OVERLAP] },
 ];
 
 export const ASSET_CLASS_COLORS: Record<AssetClass, string> = {
