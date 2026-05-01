@@ -10,10 +10,12 @@ async function getYahooFinance() {
   if (!_yf) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const mod = await import(/* webpackIgnore: true */ 'yahoo-finance2' as any);
-    console.log('[mod] keys:', Object.keys(mod || {}).join(', '));
-    console.log('[mod] default type:', typeof mod?.default);
-    console.log('[mod] default keys:', Object.keys(mod?.default || {}).slice(0, 10).join(', '));
-    console.log('[mod] default.chart:', typeof (mod?.default as any)?.chart);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const d = mod?.default as any;
+    console.log('[mod] default type:', typeof d);
+    console.log('[mod] own props:', Object.getOwnPropertyNames(d || {}).slice(0, 15).join(', '));
+    console.log('[mod] proto props:', Object.getOwnPropertyNames(d?.prototype || {}).slice(0, 15).join(', '));
+    console.log('[mod] instance test:', typeof d?.call ? typeof new d()?.chart : 'not a constructor');
     _yf = mod.default ?? mod;
   }
   return _yf;
