@@ -45,7 +45,8 @@ async function fetchOneTicker(
 
     bars.sort((a, b) => a.date.localeCompare(b.date));
     return bars.length > 1 ? bars : null;
-  } catch {
+  } catch (err) {
+    console.error(`[fetch] ${ticker}:`, err instanceof Error ? err.message : String(err));
     return null;
   }
 }
@@ -71,5 +72,6 @@ export async function fetchPrices(
     });
   }
 
+  console.log(`[fetchPrices] ${Object.keys(history).length} ok, ${skipped.length} skipped`);
   return { history, skipped };
 }
