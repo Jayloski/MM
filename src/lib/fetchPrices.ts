@@ -1,11 +1,7 @@
 import 'server-only';
+import yahooFinance from 'yahoo-finance2';
 import type { PriceBar } from '@/types';
 import type { TimeframeConfig } from '@/types';
-
-// Use require to avoid CJS/ESM interop issues with yahoo-finance2 in Next.js webpack
-// eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-explicit-any
-const _yf = require('yahoo-finance2') as any;
-const yahooFinance = _yf.default ?? _yf;
 
 const BATCH_SIZE = 8;
 
