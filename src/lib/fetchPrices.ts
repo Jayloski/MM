@@ -10,6 +10,10 @@ async function getYahooFinance() {
   if (!_yf) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const mod = await import(/* webpackIgnore: true */ 'yahoo-finance2' as any);
+    console.log('[mod] keys:', Object.keys(mod || {}).join(', '));
+    console.log('[mod] default type:', typeof mod?.default);
+    console.log('[mod] default keys:', Object.keys(mod?.default || {}).slice(0, 10).join(', '));
+    console.log('[mod] default.chart:', typeof (mod?.default as any)?.chart);
     _yf = mod.default ?? mod;
   }
   return _yf;
