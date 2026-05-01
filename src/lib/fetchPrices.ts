@@ -43,7 +43,8 @@ async function fetchOneTicker(
       .sort((a, b) => a.date.localeCompare(b.date));
 
     return bars.length > 1 ? bars : null;
-  } catch {
+  } catch (err) {
+    console.error(`[fetch] ES=F only:`, ticker === 'ES=F' ? (err instanceof Error ? err.message : String(err)) : '...');
     return null;
   }
 }
