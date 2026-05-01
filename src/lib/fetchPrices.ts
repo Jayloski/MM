@@ -3,6 +3,9 @@ import yahooFinance from 'yahoo-finance2';
 import type { PriceBar } from '@/types';
 import type { TimeframeConfig } from '@/types';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+console.log('[yf] typeof yahooFinance:', typeof yahooFinance, '| has .chart:', typeof (yahooFinance as any)?.chart);
+
 const BATCH_SIZE = 8;
 
 async function fetchOneTicker(
@@ -30,7 +33,8 @@ async function fetchOneTicker(
       .sort((a, b) => a.date.localeCompare(b.date));
 
     return bars.length > 1 ? bars : null;
-  } catch {
+  } catch (err) {
+    console.error(`[fetch] ${ticker}:`, err instanceof Error ? err.message : String(err));
     return null;
   }
 }
