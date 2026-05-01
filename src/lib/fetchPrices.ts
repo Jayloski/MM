@@ -1,19 +1,19 @@
 import 'server-only';
-import yahooFinance from 'yahoo-finance2';
-import * as yahooFinanceNS from 'yahoo-finance2';
 import type { PriceBar } from '@/types';
 import type { TimeframeConfig } from '@/types';
 
+// Use webpackIgnore so Node.js loads yahoo-finance2 natively at runtime,
+// bypassing webpack's ESM bundling which strips the module's methods.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const _yf = yahooFinance as any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const _ns = yahooFinanceNS as any;
-console.log('[yf] default.chart:', typeof _yf?.chart);
-console.log('[yf] default.prototype.chart:', typeof _yf?.prototype?.chart);
-console.log('[yf] default.default.chart:', typeof _yf?.default?.chart);
-console.log('[yf] NS.chart:', typeof _ns?.chart);
-console.log('[yf] NS.default:', typeof _ns?.default);
-console.log('[yf] NS.default.chart:', typeof _ns?.default?.chart);
+let _yf: any;
+async function getYahooFinance() {
+  if (!_yf) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const mod = await import(/* webpackIgnore: true */ 'yahoo-finance2' as any);
+    _yf = mod.default ?? mod;
+  }
+  return _yf;
+}
 
 const BATCH_SIZE = 8;
 
@@ -22,6 +22,7 @@ async function fetchOneTicker(
   config: TimeframeConfig,
 ): Promise<PriceBar[] | null> {
   try {
+    const yahooFinance = await getYahooFinance();
     const period2 = new Date();
     const period1 = new Date();
     period1.setDate(period1.getDate() - config.fetchDays);
@@ -42,8 +43,7 @@ async function fetchOneTicker(
       .sort((a, b) => a.date.localeCompare(b.date));
 
     return bars.length > 1 ? bars : null;
-  } catch (err) {
-    console.error(`[fetch] ${ticker}:`, err instanceof Error ? err.message : String(err));
+  } catch {
     return null;
   }
 }
