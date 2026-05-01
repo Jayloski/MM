@@ -19,14 +19,15 @@ interface CorrelatedNeighbor {
 export default function CorrelationWeb({ data, threshold }: Props) {
   const svgRef    = useRef<SVGSVGElement>(null);
   const simRef    = useRef<d3.Simulation<WebNode, WebLink> | null>(null);
-  const selectRef = useRef<(id: string | null) => void>(() => {});
+  const nodeElRef = useRef<d3.Selection<SVGGElement, WebNode, SVGGElement, unknown> | null>(null);
+  const onClickRef = useRef<(id: string) => void>(() => {});
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  // Keep ref in sync so D3 click handlers never have stale closure
-  selectRef.current = setSelectedId;
+  // Keep click handler ref fresh so D3 closure never goes stale
+  onClickRef.current = setSelectedId;
 
-  // Derive panel data from selectedId
+  // Derive panel data
   const selectedLabel = selectedId ? (data.labels[selectedId] ?? selectedId) : null;
   const neighbors: CorrelatedNeighbor[] = selectedId
     ? (() => {
@@ -39,10 +40,9 @@ export default function CorrelationWeb({ data, threshold }: Props) {
       })()
     : [];
 
-  const handleNeighborClick = useCallback((id: string) => {
-    setSelectedId(id);
-  }, []);
+  const handleNeighborClick = useCallback((id: string) => setSelectedId(id), []);
 
+  // Main simulation — only rebuilds when data or threshold changes
   useEffect(() => {
     if (!svgRef.current) return;
 
@@ -61,8 +61,6 @@ export default function CorrelationWeb({ data, threshold }: Props) {
       assetClass: data.assetClasses[ticker] as AssetClass,
       subGroup: data.subGroups[ticker],
     }));
-
-    const tickerIndex = new Map(data.tickers.map((t, i) => [t, i]));
 
     const links: WebLink[] = [];
     const n = data.tickers.length;
@@ -101,6 +99,8 @@ export default function CorrelationWeb({ data, threshold }: Props) {
       .data(nodes).join('g')
       .attr('cursor', 'grab');
 
+    nodeElRef.current = nodeEl;
+
     nodeEl.append('circle')
       .attr('r', radius)
       .attr('fill', d => ASSET_CLASS_COLORS[d.assetClass] ?? '#888')
@@ -116,34 +116,31 @@ export default function CorrelationWeb({ data, threshold }: Props) {
 
     nodeEl.append('title').text(d => d.label);
 
-    // Click — update selected via ref so closure stays fresh
-    nodeEl.on('click', (_event, d) => {
-      selectRef.current(d.id);
-    });
+    // Track whether pointer moved so click doesn't fire after drag
+    let wasDragged = false;
 
     const drag = d3
       .drag<SVGGElement, WebNode>()
       .on('start', (event, d) => {
+        wasDragged = false;
         if (!event.active) simulation.alphaTarget(0.3).restart();
         d.fx = d.x; d.fy = d.y;
-        try {
-          d3.select<SVGGElement, WebNode>(event.sourceEvent.currentTarget as SVGGElement)
-            .attr('cursor', 'grabbing');
-        } catch { /* ignore */ }
       })
-      .on('drag', (event, d) => { d.fx = event.x; d.fy = event.y; })
+      .on('drag', (event, d) => {
+        wasDragged = true;
+        d.fx = event.x; d.fy = event.y;
+      })
       .on('end', (event, d) => {
         if (!event.active) simulation.alphaTarget(0);
         d.fx = null; d.fy = null;
-        if (event.sourceEvent?.currentTarget) {
-          try {
-            d3.select<SVGGElement, WebNode>(event.sourceEvent.currentTarget as SVGGElement)
-              .attr('cursor', 'grab');
-          } catch { /* ignore */ }
-        }
       });
 
     nodeEl.call(drag as d3.DragBehavior<SVGGElement, WebNode, unknown>);
+
+    nodeEl.on('click', (_event, d) => {
+      if (wasDragged) return;
+      onClickRef.current(d.id);
+    });
 
     const simulation = d3
       .forceSimulation<WebNode>(nodes)
@@ -183,7 +180,18 @@ export default function CorrelationWeb({ data, threshold }: Props) {
       });
 
     return () => { simulation.stop(); };
-  }, [data, threshold]);
+  }, [data, threshold]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Highlight selected node without restarting the simulation
+  useEffect(() => {
+    const nodeEl = nodeElRef.current;
+    if (!nodeEl) return;
+    const radius = 16;
+    nodeEl.select('circle')
+      .attr('r',            (d: WebNode) => d.id === selectedId ? radius + 4 : radius)
+      .attr('stroke',       (d: WebNode) => d.id === selectedId ? '#ffffff'  : '#0f1117')
+      .attr('stroke-width', (d: WebNode) => d.id === selectedId ? 2.5        : 1.5);
+  }, [selectedId]);
 
   return (
     <div className="flex gap-3">
@@ -199,7 +207,6 @@ export default function CorrelationWeb({ data, threshold }: Props) {
       {/* Node detail panel */}
       {selectedId && (
         <div className="w-64 shrink-0 rounded-lg border border-surface-border bg-surface-raised">
-          {/* Header */}
           <div className="flex items-center justify-between border-b border-surface-border px-4 py-3">
             <div>
               <div className="text-xs text-slate-500 uppercase tracking-wider">Selected</div>
@@ -214,14 +221,13 @@ export default function CorrelationWeb({ data, threshold }: Props) {
             </button>
           </div>
 
-          {/* Correlation list */}
           <div className="overflow-y-auto" style={{ maxHeight: 540 }}>
             <div className="px-4 py-2 text-xs text-slate-600 uppercase tracking-wider">
               All correlations
             </div>
             {neighbors.map(nb => {
-              const isPos   = nb.r >= 0;
-              const absR    = Math.abs(nb.r);
+              const isPos    = nb.r >= 0;
+              const absR     = Math.abs(nb.r);
               const barColor = isPos ? '#60a5fa' : '#f87171';
               return (
                 <button
@@ -233,14 +239,10 @@ export default function CorrelationWeb({ data, threshold }: Props) {
                     <span className="text-xs text-slate-300 group-hover:text-white transition-colors">
                       {nb.label}
                     </span>
-                    <span
-                      className="font-mono text-xs font-semibold"
-                      style={{ color: barColor }}
-                    >
+                    <span className="font-mono text-xs font-semibold" style={{ color: barColor }}>
                       {nb.r >= 0 ? '+' : ''}{nb.r.toFixed(2)}
                     </span>
                   </div>
-                  {/* Mini bar */}
                   <div className="h-0.5 w-full rounded-full bg-white/5">
                     <div
                       className="h-full rounded-full"
