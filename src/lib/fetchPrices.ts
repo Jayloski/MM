@@ -1,10 +1,19 @@
 import 'server-only';
 import yahooFinance from 'yahoo-finance2';
+import * as yahooFinanceNS from 'yahoo-finance2';
 import type { PriceBar } from '@/types';
 import type { TimeframeConfig } from '@/types';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-console.log('[yf] typeof yahooFinance:', typeof yahooFinance, '| has .chart:', typeof (yahooFinance as any)?.chart);
+const _yf = yahooFinance as any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const _ns = yahooFinanceNS as any;
+console.log('[yf] default.chart:', typeof _yf?.chart);
+console.log('[yf] default.prototype.chart:', typeof _yf?.prototype?.chart);
+console.log('[yf] default.default.chart:', typeof _yf?.default?.chart);
+console.log('[yf] NS.chart:', typeof _ns?.chart);
+console.log('[yf] NS.default:', typeof _ns?.default);
+console.log('[yf] NS.default.chart:', typeof _ns?.default?.chart);
 
 const BATCH_SIZE = 8;
 
