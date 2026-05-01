@@ -2,24 +2,7 @@ import 'server-only';
 import type { PriceBar } from '@/types';
 import type { TimeframeConfig } from '@/types';
 
-// Use webpackIgnore so Node.js loads yahoo-finance2 natively at runtime,
-// bypassing webpack's ESM bundling which strips the module's methods.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let _yf: any;
-async function getYahooFinance() {
-  if (!_yf) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const mod = await import(/* webpackIgnore: true */ 'yahoo-finance2' as any);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const d = mod?.default as any;
-    console.log('[mod] default type:', typeof d);
-    console.log('[mod] own props:', Object.getOwnPropertyNames(d || {}).slice(0, 15).join(', '));
-    console.log('[mod] proto props:', Object.getOwnPropertyNames(d?.prototype || {}).slice(0, 15).join(', '));
-    console.log('[mod] instance test:', typeof d?.call ? typeof new d()?.chart : 'not a constructor');
-    _yf = mod.default ?? mod;
-  }
-  return _yf;
-}
+const YF_CHART = 'https://query1.finance.yahoo.com/v8/finance/chart';
 
 const BATCH_SIZE = 8;
 
@@ -28,37 +11,45 @@ async function fetchOneTicker(
   config: TimeframeConfig,
 ): Promise<PriceBar[] | null> {
   try {
-    const yahooFinance = await getYahooFinance();
-    const period2 = new Date();
-    const period1 = new Date();
-    period1.setDate(period1.getDate() - config.fetchDays);
+    const period2 = Math.floor(Date.now() / 1000);
+    const period1 = Math.floor(period2 - config.fetchDays * 86400);
+    const url =
+      `${YF_CHART}/${encodeURIComponent(ticker)}` +
+      `?interval=${config.yfInterval}&period1=${period1}&period2=${period2}&includePrePost=false`;
 
-    const result = await yahooFinance.chart(ticker, {
-      period1,
-      period2,
-      interval: config.yfInterval,
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        Accept: 'application/json',
+      },
+      next: { revalidate: 300 },
     });
 
-    const quotes = result?.quotes ?? [];
-    const bars: PriceBar[] = quotes
-      .filter(q => q.close != null && isFinite(q.close as number))
-      .map(q => ({
-        date: new Date(q.date).toISOString(),
-        close: q.close as number,
-      }))
-      .sort((a, b) => a.date.localeCompare(b.date));
+    if (!res.ok) return null;
 
+    const json = await res.json();
+    const result = json?.chart?.result?.[0];
+    if (!result) return null;
+
+    const timestamps: number[] = result.timestamp ?? [];
+    const closes: (number | null)[] = result.indicators?.quote?.[0]?.close ?? [];
+
+    const bars: PriceBar[] = [];
+    for (let i = 0; i < timestamps.length; i++) {
+      const close = closes[i];
+      if (close != null && isFinite(close)) {
+        bars.push({ date: new Date(timestamps[i] * 1000).toISOString(), close });
+      }
+    }
+
+    bars.sort((a, b) => a.date.localeCompare(b.date));
     return bars.length > 1 ? bars : null;
-  } catch (err) {
-    console.error(`[fetch] ES=F only:`, ticker === 'ES=F' ? (err instanceof Error ? err.message : String(err)) : '...');
+  } catch {
     return null;
   }
 }
 
-/**
- * Fetch price bars for a list of tickers concurrently in batches.
- * Returns a partial result — tickers that fail are excluded.
- */
 export async function fetchPrices(
   tickers: string[],
   config: TimeframeConfig,
@@ -68,9 +59,7 @@ export async function fetchPrices(
 
   for (let i = 0; i < tickers.length; i += BATCH_SIZE) {
     const batch = tickers.slice(i, i + BATCH_SIZE);
-    const results = await Promise.allSettled(
-      batch.map(t => fetchOneTicker(t, config)),
-    );
+    const results = await Promise.allSettled(batch.map(t => fetchOneTicker(t, config)));
 
     results.forEach((result, idx) => {
       const ticker = batch[idx];
