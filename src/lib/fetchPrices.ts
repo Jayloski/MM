@@ -33,7 +33,8 @@ async function fetchOneTicker(
       .sort((a, b) => a.date.localeCompare(b.date));
 
     return bars.length > 1 ? bars : null;
-  } catch {
+  } catch (err) {
+    console.error(`[fetchPrices] ${ticker} failed:`, err instanceof Error ? err.message : err);
     // retry once after a short delay
     await sleep(600);
     try {
@@ -47,7 +48,8 @@ async function fetchOneTicker(
         .map(q => ({ date: new Date(q.date).toISOString(), close: q.close as number }))
         .sort((a, b) => a.date.localeCompare(b.date));
       return bars.length > 1 ? bars : null;
-    } catch {
+    } catch (err2) {
+      console.error(`[fetchPrices] ${ticker} retry failed:`, err2 instanceof Error ? err2.message : err2);
       return null;
     }
   }
