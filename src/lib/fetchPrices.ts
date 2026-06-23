@@ -1,71 +1,72 @@
 import 'server-only';
-import type { PriceBar } from '@/types';
-import type { TimeframeConfig } from '@/types';
+import type { PriceBar, TimeframeConfig } from '@/types';
 
 const BATCH_SIZE = 4;
-const BATCH_DELAY_MS = 400;
+const BATCH_DELAY_MS = 500;
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let _yf: any = null;
-async function getYF() {
-  if (!_yf) {
-    // webpackIgnore tells webpack to skip bundling this — loads at Node runtime
-    const mod = await import(/* webpackIgnore: true */ 'yahoo-finance2');
-    _yf = mod.default ?? mod;
-  }
-  return _yf;
+// Yahoo Finance interval strings
+const YF_INTERVAL_MAP: Record<string, string> = {
+  '5m': '5m',
+  '15m': '15m',
+  '60m': '60m',
+  '1d': '1d',
+};
+
+// Yahoo Finance range strings based on fetchDays
+function daysToRange(days: number): string {
+  if (days <= 7)   return '5d';
+  if (days <= 30)  return '1mo';
+  if (days <= 90)  return '3mo';
+  if (days <= 180) return '6mo';
+  if (days <= 365) return '1y';
+  return '2y';
 }
 
 async function fetchOneTicker(
   ticker: string,
   config: TimeframeConfig,
 ): Promise<PriceBar[] | null> {
-  const yf = await getYF();
-  const period2 = new Date();
-  const period1 = new Date();
-  period1.setDate(period1.getDate() - config.fetchDays);
+  const interval = YF_INTERVAL_MAP[config.yfInterval] ?? config.yfInterval;
+  const range = daysToRange(config.fetchDays);
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=${interval}&range=${range}&includePrePost=false`;
 
-  try {
-    const result = await yf.chart(ticker, {
-      period1,
-      period2,
-      interval: config.yfInterval,
-    });
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    'Accept': 'application/json',
+  };
 
-    const quotes = result?.quotes ?? [];
-    const bars: PriceBar[] = quotes
-      .filter((q: any) => q.close != null && isFinite(q.close))
-      .map((q: any) => ({
-        date: new Date(q.date).toISOString(),
-        close: q.close as number,
-      }))
-      .sort((a: PriceBar, b: PriceBar) => a.date.localeCompare(b.date));
-
-    return bars.length > 1 ? bars : null;
-  } catch (err) {
-    console.error(`[fetchPrices] ${ticker} failed:`, err instanceof Error ? err.message : err);
-    await sleep(600);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (attempt > 0) await sleep(800);
     try {
-      const result = await yf.chart(ticker, { period1, period2, interval: config.yfInterval });
-      const quotes = result?.quotes ?? [];
-      const bars: PriceBar[] = quotes
-        .filter((q: any) => q.close != null && isFinite(q.close))
-        .map((q: any) => ({ date: new Date(q.date).toISOString(), close: q.close as number }))
-        .sort((a: PriceBar, b: PriceBar) => a.date.localeCompare(b.date));
+      const res = await fetch(url, { headers, next: { revalidate: 0 } });
+      if (!res.ok) {
+        console.error(`[fetchPrices] ${ticker} HTTP ${res.status}`);
+        continue;
+      }
+      const json = await res.json();
+      const result = json?.chart?.result?.[0];
+      if (!result) continue;
+
+      const timestamps: number[] = result.timestamp ?? [];
+      const closes: (number | null)[] = result.indicators?.quote?.[0]?.close ?? [];
+
+      const bars: PriceBar[] = [];
+      for (let i = 0; i < timestamps.length; i++) {
+        const close = closes[i];
+        if (close == null || !isFinite(close)) continue;
+        bars.push({ date: new Date(timestamps[i] * 1000).toISOString(), close });
+      }
+      bars.sort((a, b) => a.date.localeCompare(b.date));
       return bars.length > 1 ? bars : null;
-    } catch (err2) {
-      console.error(`[fetchPrices] ${ticker} retry failed:`, err2 instanceof Error ? err2.message : err2);
-      return null;
+    } catch (err) {
+      console.error(`[fetchPrices] ${ticker} attempt ${attempt + 1} failed:`, err instanceof Error ? err.message : err);
     }
   }
+  return null;
 }
 
-/**
- * Fetch price bars for a list of tickers concurrently in batches.
- * Returns a partial result — tickers that fail are excluded.
- */
 export async function fetchPrices(
   tickers: string[],
   config: TimeframeConfig,
