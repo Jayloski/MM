@@ -1,7 +1,9 @@
 import 'server-only';
-import yahooFinance from 'yahoo-finance2';
 import type { PriceBar } from '@/types';
 import type { TimeframeConfig } from '@/types';
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-explicit-any
+const yahooFinance: any = require('yahoo-finance2').default ?? require('yahoo-finance2');
 
 const BATCH_SIZE = 4;
 const BATCH_DELAY_MS = 400;
