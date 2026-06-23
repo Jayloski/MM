@@ -130,9 +130,10 @@ function PairsSection({
 
 interface Props {
   data: DivergenceResponse;
+  loading?: boolean;
 }
 
-export default function DivergenceScanner({ data }: Props) {
+export default function DivergenceScanner({ data, loading }: Props) {
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
@@ -173,7 +174,7 @@ export default function DivergenceScanner({ data }: Props) {
   const tableProps = { sortKey, sortDir, onSort: handleSort };
 
   return (
-    <div className="space-y-4">
+    <div className={`space-y-4 transition-opacity ${loading ? 'opacity-50' : 'opacity-100'}`}>
       <div className="flex items-center justify-between">
         <h2 className="text-xs font-semibold uppercase tracking-widest text-slate-500">
           Divergence Scanner
