@@ -123,10 +123,8 @@ export default function CorrelationWeb({ data, threshold }: Props) {
         if (!event.active) simulation.alphaTarget(0.3).restart();
         d.fx = d.x;
         d.fy = d.y;
-        d3.select<SVGGElement, WebNode>(event.sourceEvent.currentTarget as SVGGElement).attr(
-          'cursor',
-          'grabbing',
-        );
+        d3.select<SVGGElement, WebNode>(event.sourceEvent.target as SVGGElement)
+          .attr('cursor', 'grabbing');
       })
       .on('drag', (event, d) => {
         d.fx = event.x;
@@ -136,10 +134,8 @@ export default function CorrelationWeb({ data, threshold }: Props) {
         if (!event.active) simulation.alphaTarget(0);
         d.fx = null;
         d.fy = null;
-        d3.select<SVGGElement, WebNode>(event.sourceEvent.currentTarget as SVGGElement).attr(
-          'cursor',
-          'grab',
-        );
+        d3.select<SVGGElement, WebNode>(event.sourceEvent.target as SVGGElement)
+          .attr('cursor', 'grab');
       });
 
     nodeEl.call(drag as d3.DragBehavior<SVGGElement, WebNode, unknown>);
