@@ -3,36 +3,50 @@ import yahooFinance from 'yahoo-finance2';
 import type { PriceBar } from '@/types';
 import type { TimeframeConfig } from '@/types';
 
+yahooFinance.setGlobalConfig({ validation: { logErrors: false, logWarnings: false } });
+
 const BATCH_SIZE = 8;
+const BATCH_DELAY_MS = 300;
+const MAX_RETRIES = 2;
 
 async function fetchOneTicker(
   ticker: string,
   config: TimeframeConfig,
 ): Promise<PriceBar[] | null> {
-  try {
-    const period2 = new Date();
-    const period1 = new Date();
-    period1.setDate(period1.getDate() - config.fetchDays);
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const period2 = new Date();
+      const period1 = new Date();
+      period1.setDate(period1.getDate() - config.fetchDays);
 
-    const result = await yahooFinance.chart(ticker, {
-      period1,
-      period2,
-      interval: config.yfInterval,
-    });
+      const result = await yahooFinance.chart(ticker, {
+        period1,
+        period2,
+        interval: config.yfInterval,
+      });
 
-    const quotes = result?.quotes ?? [];
-    const bars: PriceBar[] = quotes
-      .filter(q => q.close != null && isFinite(q.close as number))
-      .map(q => ({
-        date: new Date(q.date).toISOString(),
-        close: q.close as number,
-      }))
-      .sort((a, b) => a.date.localeCompare(b.date));
+      const quotes = result?.quotes ?? [];
+      const bars: PriceBar[] = quotes
+        .filter(q => q.close != null && isFinite(q.close as number))
+        .map(q => ({
+          date: new Date(q.date).toISOString(),
+          close: q.close as number,
+        }))
+        .sort((a, b) => a.date.localeCompare(b.date));
 
-    return bars.length > 1 ? bars : null;
-  } catch {
-    return null;
+      return bars.length > 1 ? bars : null;
+    } catch (err) {
+      if (attempt < MAX_RETRIES) {
+        await new Promise(r => setTimeout(r, 500 * Math.pow(2, attempt)));
+        continue;
+      }
+      if (process.env.NODE_ENV !== 'production') {
+        console.error(`[fetchPrices] ${ticker} failed:`, err);
+      }
+      return null;
+    }
   }
+  return null;
 }
 
 /**
@@ -47,6 +61,8 @@ export async function fetchPrices(
   const skipped: string[] = [];
 
   for (let i = 0; i < tickers.length; i += BATCH_SIZE) {
+    if (i > 0) await new Promise(r => setTimeout(r, BATCH_DELAY_MS));
+
     const batch = tickers.slice(i, i + BATCH_SIZE);
     const results = await Promise.allSettled(
       batch.map(t => fetchOneTicker(t, config)),
