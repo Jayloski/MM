@@ -9,8 +9,9 @@ interface Props {
 }
 
 const NAV_LINKS = [
-  { href: '/dashboard', label: 'Dashboard' },
-  { href: '/',          label: 'Correlation' },
+  { href: '/dashboard',  label: 'Dashboard'   },
+  { href: '/divergence', label: 'Divergence'  },
+  { href: '/',           label: 'Correlation' },
 ];
 
 export default function Navbar({ data }: Props) {
