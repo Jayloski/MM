@@ -3,7 +3,10 @@ import yahooFinance from 'yahoo-finance2';
 import type { PriceBar } from '@/types';
 import type { TimeframeConfig } from '@/types';
 
-const BATCH_SIZE = 8;
+const BATCH_SIZE = 4;
+const BATCH_DELAY_MS = 400;
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 async function fetchOneTicker(
   ticker: string,
@@ -31,7 +34,22 @@ async function fetchOneTicker(
 
     return bars.length > 1 ? bars : null;
   } catch {
-    return null;
+    // retry once after a short delay
+    await sleep(600);
+    try {
+      const period2 = new Date();
+      const period1 = new Date();
+      period1.setDate(period1.getDate() - config.fetchDays);
+      const result = await yahooFinance.chart(ticker, { period1, period2, interval: config.yfInterval });
+      const quotes = result?.quotes ?? [];
+      const bars: PriceBar[] = quotes
+        .filter(q => q.close != null && isFinite(q.close as number))
+        .map(q => ({ date: new Date(q.date).toISOString(), close: q.close as number }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+      return bars.length > 1 ? bars : null;
+    } catch {
+      return null;
+    }
   }
 }
 
@@ -47,6 +65,7 @@ export async function fetchPrices(
   const skipped: string[] = [];
 
   for (let i = 0; i < tickers.length; i += BATCH_SIZE) {
+    if (i > 0) await sleep(BATCH_DELAY_MS);
     const batch = tickers.slice(i, i + BATCH_SIZE);
     const results = await Promise.allSettled(
       batch.map(t => fetchOneTicker(t, config)),
