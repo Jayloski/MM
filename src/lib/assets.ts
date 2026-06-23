@@ -47,7 +47,7 @@ export const ASSETS: Asset[] = [
   { ticker: 'GBPUSD=X', label: 'GBP/USD', assetClass: 'forex', subGroup: 'trades' },
   { ticker: 'NZDUSD=X', label: 'NZD/USD', assetClass: 'forex', subGroup: 'trades' },
   // USD
-  { ticker: 'USDCAD=X', label: 'USD/CAD', assetClass: 'forex', subGroup: 'usd' },
+  { ticker: 'CAD=X',    label: 'USD/CAD', assetClass: 'forex', subGroup: 'usd' },
   { ticker: 'USDCHF=X', label: 'USD/CHF', assetClass: 'forex', subGroup: 'usd' },
   // NZD
   { ticker: 'NZDCHF=X', label: 'NZD/CHF', assetClass: 'forex', subGroup: 'nzd' },

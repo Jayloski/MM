@@ -5,8 +5,9 @@ import TimeframeSelector from '@/components/TimeframeSelector';
 import AssetClassFilter from '@/components/AssetClassFilter';
 import ThresholdSlider from '@/components/ThresholdSlider';
 import Navbar from '@/components/Navbar';
+import NodeDetailPanel from '@/components/NodeDetailPanel';
 import { useCorrelationData } from '@/hooks/useCorrelationData';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 
 const CorrelationHeatmap = dynamic(() => import('@/components/CorrelationHeatmap'), {
   ssr: false,
@@ -29,7 +30,13 @@ export default function HomePage() {
     activeClasses, setActiveClasses,
     data, loading, error,
   } = useCorrelationData();
+
   const [threshold, setThreshold] = useState(0.35);
+  const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
+
+  const handleNodeClick = useCallback((ticker: string) => {
+    setSelectedTicker(t => t === ticker ? null : ticker);
+  }, []);
 
   return (
     <div className="min-h-screen bg-surface text-slate-200">
@@ -86,10 +93,27 @@ export default function HomePage() {
               <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-500">
                 Correlation Web
                 <span className="ml-3 font-normal normal-case text-slate-600">
-                  — showing pairs with |r| ≥ {threshold.toFixed(2)} · drag nodes · scroll to zoom
+                  — showing pairs with |r| ≥ {threshold.toFixed(2)} · click node for details · drag to reposition · scroll to zoom
                 </span>
               </h2>
-              <CorrelationWeb data={data} threshold={threshold} />
+              <div className="flex gap-4">
+                <div className={`transition-all duration-300 ${selectedTicker ? 'flex-1' : 'w-full'}`}>
+                  <CorrelationWeb
+                    data={data}
+                    threshold={threshold}
+                    onNodeClick={handleNodeClick}
+                  />
+                </div>
+                {selectedTicker && (
+                  <div className="w-72 shrink-0 rounded-lg border border-surface-border bg-surface-raised">
+                    <NodeDetailPanel
+                      ticker={selectedTicker}
+                      data={data}
+                      onClose={() => setSelectedTicker(null)}
+                    />
+                  </div>
+                )}
+              </div>
             </section>
           </>
         )}

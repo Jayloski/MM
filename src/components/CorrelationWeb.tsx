@@ -8,9 +8,10 @@ import { ASSET_CLASS_COLORS } from '@/lib/assets';
 interface Props {
   data: CorrelationResponse;
   threshold: number;
+  onNodeClick?: (ticker: string) => void;
 }
 
-export default function CorrelationWeb({ data, threshold }: Props) {
+export default function CorrelationWeb({ data, threshold, onNodeClick }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const simRef = useRef<d3.Simulation<WebNode, WebLink> | null>(null);
 
@@ -140,6 +141,15 @@ export default function CorrelationWeb({ data, threshold }: Props) {
 
     nodeEl.call(drag as d3.DragBehavior<SVGGElement, WebNode, unknown>);
 
+    // Click handler — only fires if mouse didn't move (i.e. not a drag)
+    if (onNodeClick) {
+      let dragMoved = false;
+      nodeEl
+        .on('mousedown.click', () => { dragMoved = false; })
+        .on('mousemove.click', () => { dragMoved = true; })
+        .on('mouseup.click', (_, d) => { if (!dragMoved) onNodeClick(d.id); });
+    }
+
     // Force simulation
     const simulation = d3
       .forceSimulation<WebNode>(nodes)
@@ -200,7 +210,7 @@ export default function CorrelationWeb({ data, threshold }: Props) {
     return () => {
       simulation.stop();
     };
-  }, [data, threshold]);
+  }, [data, threshold, onNodeClick]);
 
   return (
     <div className="w-full rounded-lg border border-surface-border bg-surface-raised">
