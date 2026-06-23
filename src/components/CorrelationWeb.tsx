@@ -117,10 +117,12 @@ export default function CorrelationWeb({ data, threshold, onNodeClick }: Props) 
     // Tooltip label
     nodeEl.append('title').text(d => d.label);
 
-    // Drag behaviour
+    // Drag behaviour — wasDragged flag lets us detect clicks inside drag end
+    let wasDragged = false;
     const drag = d3
       .drag<SVGGElement, WebNode>()
       .on('start', (event, d) => {
+        wasDragged = false;
         if (!event.active) simulation.alphaTarget(0.3).restart();
         d.fx = d.x;
         d.fy = d.y;
@@ -128,6 +130,7 @@ export default function CorrelationWeb({ data, threshold, onNodeClick }: Props) 
           .attr('cursor', 'grabbing');
       })
       .on('drag', (event, d) => {
+        wasDragged = true;
         d.fx = event.x;
         d.fy = event.y;
       })
@@ -137,21 +140,10 @@ export default function CorrelationWeb({ data, threshold, onNodeClick }: Props) 
         d.fy = null;
         d3.select<SVGGElement, WebNode>(event.sourceEvent.target as SVGGElement)
           .attr('cursor', 'grab');
+        if (!wasDragged && onNodeClick) onNodeClick(d.id);
       });
 
     nodeEl.call(drag as d3.DragBehavior<SVGGElement, WebNode, unknown>);
-
-    // Click handler — uses pixel distance to distinguish click from drag
-    if (onNodeClick) {
-      let downX = 0, downY = 0;
-      nodeEl
-        .on('pointerdown.click', (event: PointerEvent) => { downX = event.clientX; downY = event.clientY; })
-        .on('pointerup.click', (event: PointerEvent, d) => {
-          const dx = event.clientX - downX;
-          const dy = event.clientY - downY;
-          if (Math.sqrt(dx * dx + dy * dy) < 5) onNodeClick(d.id);
-        });
-    }
 
     // Force simulation
     const simulation = d3
