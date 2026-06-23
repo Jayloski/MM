@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 // Sessions defined as UTC hour ranges; displayed in CT (America/Chicago)
 const SESSIONS = [
@@ -141,9 +141,8 @@ export default function SessionTimeline({ fetchedAt }: Props) {
             // Render two segments: startPct→100% and 0→endPct
             const endPct = b.startPct + b.widthPct - 100;
             return (
-              <>
+              <React.Fragment key={b.name}>
                 <div
-                  key={`${b.name}-a`}
                   className="absolute top-0 bottom-0 transition-colors duration-500"
                   style={{ left: `${b.startPct}%`, width: `${100 - b.startPct}%`, background: bg }}
                 />
@@ -152,7 +151,7 @@ export default function SessionTimeline({ fetchedAt }: Props) {
                   className="absolute top-0 bottom-0 transition-colors duration-500"
                   style={{ left: 0, width: `${endPct}%`, background: bg }}
                 />
-              </>
+              </React.Fragment>
             );
           }
           return (

@@ -1,17 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import TimeframeSelector from '@/components/TimeframeSelector';
 import AssetClassFilter from '@/components/AssetClassFilter';
 import ThresholdSlider from '@/components/ThresholdSlider';
-import SessionTimeline from '@/components/SessionTimeline';
-import TopMovers from '@/components/TopMovers';
-import DivergenceAlert from '@/components/DivergenceAlert';
-import type { AssetClass, CorrelationResponse, Timeframe } from '@/types';
-import { ALL_ASSET_CLASSES } from '@/lib/assets';
+import Navbar from '@/components/Navbar';
+import { useCorrelationData } from '@/hooks/useCorrelationData';
+import { useState } from 'react';
 
-// Dynamically import heavy D3 components — no SSR
 const CorrelationHeatmap = dynamic(() => import('@/components/CorrelationHeatmap'), {
   ssr: false,
   loading: () => <SkeletonBlock height={500} />,
@@ -23,104 +19,40 @@ const CorrelationWeb = dynamic(() => import('@/components/CorrelationWeb'), {
 
 function SkeletonBlock({ height }: { height: number }) {
   return (
-    <div
-      className="w-full animate-pulse rounded-lg bg-surface-raised"
-      style={{ height }}
-    />
+    <div className="w-full animate-pulse rounded-lg bg-surface-raised" style={{ height }} />
   );
 }
 
 export default function HomePage() {
-  const [timeframe, setTimeframe] = useState<Timeframe>('1d');
-  const [activeClasses, setActiveClasses] = useState<Set<AssetClass>>(
-    new Set(ALL_ASSET_CLASSES),
-  );
+  const {
+    timeframe, setTimeframe,
+    activeClasses, setActiveClasses,
+    data, loading, error,
+  } = useCorrelationData();
   const [threshold, setThreshold] = useState(0.35);
-  const [data, setData] = useState<CorrelationResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchData = useCallback(
-    async (tf: Timeframe, classes: Set<AssetClass>) => {
-      setLoading(true);
-      setError(null);
-      try {
-        const params = new URLSearchParams({
-          timeframe: tf,
-          classes: Array.from(classes).join(','),
-        });
-        const res = await fetch(`/api/correlation?${params}`);
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          throw new Error(body.error ?? `HTTP ${res.status}`);
-        }
-        const json: CorrelationResponse = await res.json();
-        setData(json);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Unknown error');
-      } finally {
-        setLoading(false);
-      }
-    },
-    [],
-  );
-
-  useEffect(() => {
-    fetchData(timeframe, activeClasses);
-  }, [timeframe, activeClasses, fetchData]);
-
-  function handleTimeframeChange(tf: Timeframe) {
-    setTimeframe(tf);
-  }
-
-  function handleClassChange(classes: Set<AssetClass>) {
-    setActiveClasses(classes);
-  }
 
   return (
     <div className="min-h-screen bg-surface text-slate-200">
-      {/* Navbar */}
-      <header className="sticky top-0 z-20 border-b border-surface-border bg-surface/90 backdrop-blur">
-        <div className="mx-auto flex max-w-screen-2xl items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-bold tracking-widest text-white uppercase">
-              Intermarket Correlation
-            </span>
-            {data && (
-              <span className="rounded bg-surface-border px-2 py-0.5 text-xs text-slate-500">
-                {data.tickers.length} instruments
-              </span>
-            )}
-          </div>
-          {data && (
-            <span className="text-xs text-slate-600">
-              Updated {new Date(data.fetchedAt).toLocaleTimeString()}
-            </span>
-          )}
-        </div>
-      </header>
+      <Navbar data={data} />
 
       {/* Controls */}
       <div className="border-b border-surface-border bg-surface-raised">
         <div className="mx-auto flex max-w-screen-2xl flex-wrap items-center gap-4 px-4 py-3">
-          <TimeframeSelector value={timeframe} onChange={handleTimeframeChange} />
+          <TimeframeSelector value={timeframe} onChange={setTimeframe} />
           <div className="h-5 w-px bg-surface-border" />
-          <AssetClassFilter active={activeClasses} onChange={handleClassChange} />
+          <AssetClassFilter active={activeClasses} onChange={setActiveClasses} />
           <div className="h-5 w-px bg-surface-border" />
           <ThresholdSlider value={threshold} onChange={setThreshold} />
         </div>
       </div>
 
-      {/* Main content */}
       <main className="mx-auto max-w-screen-2xl space-y-8 px-4 py-6">
-        {/* Error banner */}
         {error && (
           <div className="rounded border border-red-800 bg-red-950/50 px-4 py-3 text-sm text-red-300">
             Failed to load data: {error}
           </div>
         )}
 
-        {/* Skipped tickers warning */}
         {data && data.skipped.length > 0 && (
           <div className="rounded border border-amber-800 bg-amber-950/30 px-4 py-2 text-xs text-amber-400">
             {data.skipped.length} ticker(s) excluded due to insufficient data:{' '}
@@ -128,7 +60,6 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* Loading overlay */}
         {loading && !data && (
           <div className="space-y-4">
             <SkeletonBlock height={500} />
@@ -138,16 +69,6 @@ export default function HomePage() {
 
         {data && (
           <>
-            {/* Dashboard panels */}
-            <div className="space-y-3">
-              <SessionTimeline fetchedAt={data.fetchedAt} />
-              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                <TopMovers data={data} />
-                <DivergenceAlert data={data} />
-              </div>
-            </div>
-
-            {/* Heatmap */}
             <section>
               <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-500">
                 Correlation Heatmap
@@ -161,7 +82,6 @@ export default function HomePage() {
               </div>
             </section>
 
-            {/* Correlation Web */}
             <section>
               <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-500">
                 Correlation Web

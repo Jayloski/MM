@@ -52,11 +52,22 @@ async function fetchOneTicker(
       const timestamps: number[] = result.timestamp ?? [];
       const closes: (number | null)[] = result.indicators?.quote?.[0]?.close ?? [];
 
+      // Normalize date keys so cross-market timestamps align:
+      // daily → YYYY-MM-DD only; intraday → round down to interval boundary
+      const intervalMs = config.yfInterval === '1d' ? 0
+        : config.yfInterval === '60m' ? 3_600_000
+        : config.yfInterval === '15m' ? 900_000
+        : 300_000; // 5m
+
       const bars: PriceBar[] = [];
       for (let i = 0; i < timestamps.length; i++) {
         const close = closes[i];
         if (close == null || !isFinite(close)) continue;
-        bars.push({ date: new Date(timestamps[i] * 1000).toISOString(), close });
+        const ms = timestamps[i] * 1000;
+        const date = config.yfInterval === '1d'
+          ? new Date(ms).toISOString().slice(0, 10)         // YYYY-MM-DD
+          : new Date(Math.floor(ms / intervalMs) * intervalMs).toISOString().slice(0, 16); // YYYY-MM-DDTHH:MM
+        bars.push({ date, close });
       }
       bars.sort((a, b) => a.date.localeCompare(b.date));
       return bars.length > 1 ? bars : null;
