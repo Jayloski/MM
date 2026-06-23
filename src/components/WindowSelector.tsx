@@ -1,6 +1,6 @@
 'use client';
 
-const WINDOWS = [5, 10, 15, 20, 30, 50] as const;
+const WINDOWS = [10, 20, 30] as const;
 export type ShortWindow = typeof WINDOWS[number];
 
 interface Props {
