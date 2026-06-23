@@ -62,6 +62,29 @@ export interface CorrelationResponse {
   volatility: Record<string, number>;
 }
 
+export interface DivergencePair {
+  tickerA: string;
+  tickerB: string;
+  labelA: string;
+  labelB: string;
+  assetClassA: AssetClass;
+  assetClassB: AssetClass;
+  longR: number;
+  spreadZ: number;
+  cumA: number;
+  cumB: number;
+  moverIsA: boolean;
+  continuationRate: number | null;
+}
+
+export interface DivergenceResponse {
+  pairs: DivergencePair[];
+  timeframe: Timeframe;
+  fetchedAt: string;
+  skipped: string[];
+  shortWindow: number;
+}
+
 export interface WebNode extends SimulationNodeDatum {
   id: string;
   label: string;
