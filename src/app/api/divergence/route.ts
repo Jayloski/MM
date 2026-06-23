@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ASSETS, TIMEFRAME_CONFIGS, ALL_ASSET_CLASSES } from '@/lib/assets';
 import { fetchPrices } from '@/lib/fetchPrices';
-import { computeReturns, resampleBars, alignReturns } from '@/lib/correlation';
+import { computeReturns, resampleBars } from '@/lib/correlation';
 import { computeDivergencePairs } from '@/lib/divergence';
 import type { Timeframe, AssetClass, DivergenceResponse } from '@/types';
 
@@ -61,10 +61,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Insufficient data', skipped }, { status: 502 });
   }
 
-  const aligned = alignReturns(returnMaps, config.lookbackBars);
   const assetMap = new Map(assets.map(a => [a.ticker, { label: a.label, assetClass: a.assetClass }]));
 
-  const pairs = computeDivergencePairs(aligned, availableTickers, assetMap, shortWindow, minR);
+  const pairs = computeDivergencePairs(returnMaps, availableTickers, assetMap, shortWindow, minR, config.lookbackBars);
 
   const response: DivergenceResponse = {
     pairs,

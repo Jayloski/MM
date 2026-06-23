@@ -26,36 +26,48 @@ function std(arr: number[], m: number): number {
   return Math.sqrt(arr.reduce((s, v) => s + (v - m) ** 2, 0) / arr.length);
 }
 
+/** Align two return maps by pairwise shared dates, returning last N as arrays. */
+function alignPair(
+  mapA: Map<string, number>,
+  mapB: Map<string, number>,
+  lookbackBars: number,
+): [number[], number[]] {
+  const shared: string[] = [];
+  for (const d of mapA.keys()) {
+    if (mapB.has(d)) shared.push(d);
+  }
+  const dates = shared.sort().slice(-lookbackBars);
+  return [
+    dates.map(d => { const v = mapA.get(d)!; return isFinite(v) ? v : 0; }),
+    dates.map(d => { const v = mapB.get(d)!; return isFinite(v) ? v : 0; }),
+  ];
+}
+
 export function computeDivergencePairs(
-  aligned: Map<string, number[]>,
+  returnMaps: Map<string, Map<string, number>>,
   tickers: string[],
   assetMeta: Map<string, AssetMeta>,
   shortWindow: number,
   minR: number,
+  lookbackBars: number,
 ): DivergencePair[] {
-  // Build clean series (NaN → 0)
-  const seriesMap = new Map<string, number[]>();
-  for (const ticker of tickers) {
-    const s = aligned.get(ticker);
-    if (s && s.length >= shortWindow + 10) {
-      seriesMap.set(ticker, s.map(v => (isFinite(v) ? v : 0)));
-    }
-  }
-
-  const valid = Array.from(seriesMap.keys());
+  const valid = tickers.filter(t => returnMaps.has(t));
   const results: DivergencePair[] = [];
 
   for (let i = 0; i < valid.length; i++) {
     const tA = valid[i];
-    const sA = seriesMap.get(tA)!;
+    const mapA = returnMaps.get(tA)!;
     const mA = assetMeta.get(tA);
     if (!mA) continue;
 
     for (let j = i + 1; j < valid.length; j++) {
       const tB = valid[j];
-      const sB = seriesMap.get(tB)!;
+      const mapB = returnMaps.get(tB)!;
       const mB = assetMeta.get(tB);
       if (!mB) continue;
+
+      const [sA, sB] = alignPair(mapA, mapB, lookbackBars);
+      if (sA.length < shortWindow + 10) continue;
 
       const longR = pearson(sA, sB);
       if (!isFinite(longR) || Math.abs(longR) < minR) continue;
@@ -77,7 +89,6 @@ export function computeDivergencePairs(
 
       const moverIsA = Math.abs(cumA) > Math.abs(cumB);
 
-      // Continuation rate: look at historical |Z| > 1 points, check if flat leg caught up
       const zSeries = spreadSeries.map(s => (s - spreadMean) / spreadStd);
       const checkableEnd = zSeries.length - shortWindow - 1;
       let instances = 0;
@@ -89,9 +100,9 @@ export function computeDivergencePairs(
 
         const aWasMover = Math.abs(rollA[k]) > Math.abs(rollB[k]);
         const moverDir = aWasMover ? Math.sign(rollA[k]) : Math.sign(rollB[k]);
-        const flatNow = aWasMover ? rollB[k] : rollA[k];
+        const flatNow   = aWasMover ? rollB[k] : rollA[k];
         const flatLater = aWasMover ? rollB[k + shortWindow] : rollA[k + shortWindow];
-        const flatMove = flatLater - flatNow;
+        const flatMove  = flatLater - flatNow;
         const threshold = Math.abs(aWasMover ? rollA[k] : rollB[k]) * 0.25;
 
         if (moverDir * flatMove > threshold) resolutions++;

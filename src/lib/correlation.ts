@@ -31,14 +31,14 @@ export function resampleBars(bars: PriceBar[], factor: number): PriceBar[] {
 }
 
 /**
- * Align multiple return series to their shared date keys and return
- * the last `lookbackBars` aligned values per ticker.
+ * Global alignment — kept for divergence scanner which needs arrays of the same length.
+ * Uses intersection of dates across ALL tickers. Fine for same-class pairs; use
+ * pearsonMaps for cross-class (futures vs forex) correlation.
  */
 export function alignReturns(
   returnMaps: Map<string, Map<string, number>>,
   lookbackBars: number,
 ): Map<string, number[]> {
-  // Find intersection of date keys across all tickers
   let sharedDates: Set<string> | null = null;
   for (const [, retMap] of returnMaps) {
     const dates = new Set(retMap.keys());
@@ -52,13 +52,11 @@ export function alignReturns(
   }
 
   if (!sharedDates || sharedDates.size === 0) {
-    // Return empty arrays if no overlap
     const empty = new Map<string, number[]>();
     for (const [ticker] of returnMaps) empty.set(ticker, []);
     return empty;
   }
 
-  // Sort dates ascending and slice to lookback window
   const sortedDates = Array.from(sharedDates).sort().slice(-lookbackBars);
 
   const aligned = new Map<string, number[]>();
@@ -66,6 +64,28 @@ export function alignReturns(
     aligned.set(ticker, sortedDates.map(d => retMap.get(d) ?? NaN));
   }
   return aligned;
+}
+
+/**
+ * Pearson correlation using pairwise date intersection of two return maps.
+ * Solves the cross-market intraday alignment problem (futures ≠ forex hours).
+ */
+export function pearsonMaps(
+  mapA: Map<string, number>,
+  mapB: Map<string, number>,
+  lookbackBars: number,
+): number {
+  // Find shared dates, sort, take last N
+  const shared: string[] = [];
+  for (const d of mapA.keys()) {
+    if (mapB.has(d)) shared.push(d);
+  }
+  if (shared.length < 2) return NaN;
+  const dates = shared.sort().slice(-lookbackBars);
+
+  const a = dates.map(d => mapA.get(d)!);
+  const b = dates.map(d => mapB.get(d)!);
+  return pearson(a, b);
 }
 
 /**
@@ -78,16 +98,16 @@ export function pearson(a: number[], b: number[]): number {
 
   let sumA = 0, sumB = 0;
   for (let i = 0; i < n; i++) {
-    sumA += a[i];
-    sumB += b[i];
+    sumA += isFinite(a[i]) ? a[i] : 0;
+    sumB += isFinite(b[i]) ? b[i] : 0;
   }
   const meanA = sumA / n;
   const meanB = sumB / n;
 
   let num = 0, dA = 0, dB = 0;
   for (let i = 0; i < n; i++) {
-    const da = a[i] - meanA;
-    const db = b[i] - meanB;
+    const da = (isFinite(a[i]) ? a[i] : 0) - meanA;
+    const db = (isFinite(b[i]) ? b[i] : 0) - meanB;
     num += da * db;
     dA  += da * da;
     dB  += db * db;
@@ -99,32 +119,36 @@ export function pearson(a: number[], b: number[]): number {
 
 /**
  * Compute population standard deviation of % returns per ticker.
- * Input is the aligned Map from alignReturns(). Returns stddev as a fraction.
+ * Uses each ticker's own return map independently (no global alignment needed).
  */
 export function computeVolatility(
-  aligned: Map<string, number[]>,
+  returnMaps: Map<string, Map<string, number>>,
+  lookbackBars: number,
 ): Record<string, number> {
   const result: Record<string, number> = {};
-  for (const [ticker, returns] of aligned) {
-    const valid = returns.filter(r => isFinite(r));
-    if (valid.length < 2) {
+  for (const [ticker, retMap] of returnMaps) {
+    const values = Array.from(retMap.values())
+      .filter(r => isFinite(r))
+      .slice(-lookbackBars);
+    if (values.length < 2) {
       result[ticker] = 0;
       continue;
     }
-    const mean = valid.reduce((a, b) => a + b, 0) / valid.length;
-    const variance = valid.reduce((sum, r) => sum + (r - mean) ** 2, 0) / valid.length;
+    const mean = values.reduce((a, b) => a + b, 0) / values.length;
+    const variance = values.reduce((sum, r) => sum + (r - mean) ** 2, 0) / values.length;
     result[ticker] = Math.sqrt(variance);
   }
   return result;
 }
 
 /**
- * Build an n×n Pearson correlation matrix from aligned returns.
- * matrix[i][j] = r; matrix[i][i] = 1.
+ * Build an n×n Pearson correlation matrix using pairwise date intersection per pair.
+ * This correctly handles cross-market intraday data (futures vs forex different hours).
  */
 export function buildCorrelationMatrix(
   tickers: string[],
-  aligned: Map<string, number[]>,
+  returnMaps: Map<string, Map<string, number>>,
+  lookbackBars: number,
 ): (number | null)[][] {
   const n = tickers.length;
   const matrix: (number | null)[][] = Array.from({ length: n }, () =>
@@ -133,10 +157,12 @@ export function buildCorrelationMatrix(
 
   for (let i = 0; i < n; i++) {
     matrix[i][i] = 1;
-    const a = aligned.get(tickers[i]) ?? [];
+    const mapA = returnMaps.get(tickers[i]);
+    if (!mapA) continue;
     for (let j = i + 1; j < n; j++) {
-      const b = aligned.get(tickers[j]) ?? [];
-      const r = pearson(a, b);
+      const mapB = returnMaps.get(tickers[j]);
+      if (!mapB) continue;
+      const r = pearsonMaps(mapA, mapB, lookbackBars);
       const val = isFinite(r) ? parseFloat(r.toFixed(4)) : null;
       matrix[i][j] = val;
       matrix[j][i] = val;

@@ -4,7 +4,6 @@ import { fetchPrices } from '@/lib/fetchPrices';
 import {
   computeReturns,
   resampleBars,
-  alignReturns,
   buildCorrelationMatrix,
   computeVolatility,
 } from '@/lib/correlation';
@@ -65,10 +64,8 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // Align returns and build matrix
-  const aligned = alignReturns(returnMaps, config.lookbackBars);
-  const matrix = buildCorrelationMatrix(availableTickers, aligned);
-  const volatility = computeVolatility(aligned);
+  const matrix = buildCorrelationMatrix(availableTickers, returnMaps, config.lookbackBars);
+  const volatility = computeVolatility(returnMaps, config.lookbackBars);
 
   // Build lookup maps
   const assetMap = new Map(assets.map(a => [a.ticker, a]));
