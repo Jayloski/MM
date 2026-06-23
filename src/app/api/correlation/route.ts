@@ -6,6 +6,7 @@ import {
   resampleBars,
   alignReturns,
   buildCorrelationMatrix,
+  computeVolatility,
 } from '@/lib/correlation';
 import type { Timeframe, AssetClass, CorrelationResponse } from '@/types';
 
@@ -67,6 +68,7 @@ export async function GET(req: NextRequest) {
   // Align returns and build matrix
   const aligned = alignReturns(returnMaps, config.lookbackBars);
   const matrix = buildCorrelationMatrix(availableTickers, aligned);
+  const volatility = computeVolatility(aligned);
 
   // Build lookup maps
   const assetMap = new Map(assets.map(a => [a.ticker, a]));
@@ -92,6 +94,7 @@ export async function GET(req: NextRequest) {
     timeframe,
     fetchedAt: new Date().toISOString(),
     skipped,
+    volatility,
   };
 
   return NextResponse.json(response);

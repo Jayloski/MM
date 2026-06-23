@@ -98,6 +98,27 @@ export function pearson(a: number[], b: number[]): number {
 }
 
 /**
+ * Compute population standard deviation of % returns per ticker.
+ * Input is the aligned Map from alignReturns(). Returns stddev as a fraction.
+ */
+export function computeVolatility(
+  aligned: Map<string, number[]>,
+): Record<string, number> {
+  const result: Record<string, number> = {};
+  for (const [ticker, returns] of aligned) {
+    const valid = returns.filter(r => isFinite(r));
+    if (valid.length < 2) {
+      result[ticker] = 0;
+      continue;
+    }
+    const mean = valid.reduce((a, b) => a + b, 0) / valid.length;
+    const variance = valid.reduce((sum, r) => sum + (r - mean) ** 2, 0) / valid.length;
+    result[ticker] = Math.sqrt(variance);
+  }
+  return result;
+}
+
+/**
  * Build an n×n Pearson correlation matrix from aligned returns.
  * matrix[i][j] = r; matrix[i][i] = 1.
  */

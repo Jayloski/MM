@@ -5,6 +5,9 @@ import dynamic from 'next/dynamic';
 import TimeframeSelector from '@/components/TimeframeSelector';
 import AssetClassFilter from '@/components/AssetClassFilter';
 import ThresholdSlider from '@/components/ThresholdSlider';
+import SessionTimeline from '@/components/SessionTimeline';
+import TopMovers from '@/components/TopMovers';
+import DivergenceAlert from '@/components/DivergenceAlert';
 import type { AssetClass, CorrelationResponse, Timeframe } from '@/types';
 import { ALL_ASSET_CLASSES } from '@/lib/assets';
 
@@ -135,6 +138,15 @@ export default function HomePage() {
 
         {data && (
           <>
+            {/* Dashboard panels */}
+            <div className="space-y-3">
+              <SessionTimeline fetchedAt={data.fetchedAt} />
+              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                <TopMovers data={data} />
+                <DivergenceAlert data={data} />
+              </div>
+            </div>
+
             {/* Heatmap */}
             <section>
               <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-500">

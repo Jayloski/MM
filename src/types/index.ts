@@ -58,6 +58,8 @@ export interface CorrelationResponse {
   fetchedAt: string;
   /** tickers excluded due to insufficient data */
   skipped: string[];
+  /** population stddev of % returns per ticker (fraction, multiply by 100 for %) */
+  volatility: Record<string, number>;
 }
 
 export interface WebNode extends SimulationNodeDatum {
