@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from 'react';
 import TimeframeSelector from '@/components/TimeframeSelector';
 import AssetClassFilter from '@/components/AssetClassFilter';
 import Navbar from '@/components/Navbar';
-import DivergenceAlert from '@/components/DivergenceAlert';
 import DivergenceScanner from '@/components/DivergenceScanner';
 import { useCorrelationData } from '@/hooks/useCorrelationData';
 import type { AssetClass, DivergenceResponse, Timeframe } from '@/types';
@@ -67,8 +66,6 @@ export default function DivergencePage() {
             Failed to load divergences: {divError}
           </div>
         )}
-
-        {corrData && <DivergenceAlert data={corrData} />}
 
         {divLoading && !divData && <SkeletonBlock height={400} />}
 

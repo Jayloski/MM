@@ -43,16 +43,23 @@ function SortBtn({
 }
 
 function PairRow({ pair }: { pair: DivergencePair }) {
-  const moverLabel = pair.moverIsA ? pair.labelA : pair.labelB;
-  const moverCls   = pair.moverIsA ? pair.assetClassA : pair.assetClassB;
-  const moverCum   = pair.moverIsA ? pair.cumA : pair.cumB;
+  const moverLabel   = pair.moverIsA ? pair.labelA : pair.labelB;
+  const moverCls     = pair.moverIsA ? pair.assetClassA : pair.assetClassB;
+  const moverCum     = pair.moverIsA ? pair.cumA : pair.cumB;
+  const holdoutIsA   = !pair.moverIsA;
   const sign = moverCum >= 0 ? '+' : '';
 
   return (
     <tr className="border-t border-surface-border hover:bg-white/[0.02] transition-colors">
       <td className="px-3 py-2.5">
-        <div className={`font-mono text-xs font-semibold ${assetColor(pair.assetClassA)}`}>{pair.labelA}</div>
-        <div className={`font-mono text-[11px] ${assetColor(pair.assetClassB)}`}>{pair.labelB}</div>
+        <div className="flex items-center gap-1.5">
+          <span className={`font-mono text-xs font-semibold ${assetColor(pair.assetClassA)}`}>{pair.labelA}</span>
+          {holdoutIsA && <span className="rounded bg-slate-800 px-1 py-px font-mono text-[9px] uppercase tracking-wider text-slate-500">holdout</span>}
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className={`font-mono text-[11px] ${assetColor(pair.assetClassB)}`}>{pair.labelB}</span>
+          {!holdoutIsA && <span className="rounded bg-slate-800 px-1 py-px font-mono text-[9px] uppercase tracking-wider text-slate-500">holdout</span>}
+        </div>
       </td>
       <td className={`px-3 py-2.5 text-center font-mono text-sm font-bold ${rColor(pair.longR)}`}>
         {pair.longR.toFixed(2)}

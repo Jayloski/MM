@@ -1,5 +1,6 @@
 'use client';
 
+import { useCallback, useEffect, useState } from 'react';
 import TimeframeSelector from '@/components/TimeframeSelector';
 import AssetClassFilter from '@/components/AssetClassFilter';
 import SessionTimeline from '@/components/SessionTimeline';
@@ -7,6 +8,7 @@ import TopMovers from '@/components/TopMovers';
 import DivergenceAlert from '@/components/DivergenceAlert';
 import Navbar from '@/components/Navbar';
 import { useCorrelationData } from '@/hooks/useCorrelationData';
+import type { AssetClass, DivergenceResponse, Timeframe } from '@/types';
 
 function SkeletonBlock({ height }: { height: number }) {
   return (
@@ -21,11 +23,29 @@ export default function DashboardPage() {
     data, loading, error,
   } = useCorrelationData();
 
+  const [divData, setDivData] = useState<DivergenceResponse | null>(null);
+
+  const fetchDivergence = useCallback(async (tf: Timeframe, classes: Set<AssetClass>) => {
+    try {
+      const params = new URLSearchParams({
+        timeframe: tf,
+        classes: Array.from(classes).join(','),
+      });
+      const res = await fetch(`/api/divergence?${params}`);
+      if (res.ok) setDivData(await res.json());
+    } catch {
+      // silent — alert is supplemental
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchDivergence(timeframe, activeClasses);
+  }, [timeframe, activeClasses, fetchDivergence]);
+
   return (
     <div className="min-h-screen bg-surface text-slate-200">
       <Navbar data={data} />
 
-      {/* Controls */}
       <div className="border-b border-surface-border bg-surface-raised">
         <div className="mx-auto flex max-w-screen-2xl flex-wrap items-center gap-4 px-4 py-3">
           <TimeframeSelector value={timeframe} onChange={setTimeframe} />
@@ -60,7 +80,7 @@ export default function DashboardPage() {
             <SessionTimeline fetchedAt={data.fetchedAt} />
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <TopMovers data={data} />
-              <DivergenceAlert data={data} />
+              {divData && divData.pairs.length > 0 && <DivergenceAlert data={divData} />}
             </div>
           </div>
         )}
