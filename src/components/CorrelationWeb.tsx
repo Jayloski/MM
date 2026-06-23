@@ -141,13 +141,16 @@ export default function CorrelationWeb({ data, threshold, onNodeClick }: Props) 
 
     nodeEl.call(drag as d3.DragBehavior<SVGGElement, WebNode, unknown>);
 
-    // Click handler — only fires if mouse didn't move (i.e. not a drag)
+    // Click handler — uses pixel distance to distinguish click from drag
     if (onNodeClick) {
-      let dragMoved = false;
+      let downX = 0, downY = 0;
       nodeEl
-        .on('mousedown.click', () => { dragMoved = false; })
-        .on('mousemove.click', () => { dragMoved = true; })
-        .on('mouseup.click', (_, d) => { if (!dragMoved) onNodeClick(d.id); });
+        .on('pointerdown.click', (event: PointerEvent) => { downX = event.clientX; downY = event.clientY; })
+        .on('pointerup.click', (event: PointerEvent, d) => {
+          const dx = event.clientX - downX;
+          const dy = event.clientY - downY;
+          if (Math.sqrt(dx * dx + dy * dy) < 5) onNodeClick(d.id);
+        });
     }
 
     // Force simulation
