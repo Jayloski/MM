@@ -1,5 +1,4 @@
 import 'server-only';
-import yahooFinance from 'yahoo-finance2';
 import type { PriceBar } from '@/types';
 import type { TimeframeConfig } from '@/types';
 
@@ -8,16 +7,28 @@ const BATCH_DELAY_MS = 400;
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _yf: any = null;
+async function getYF() {
+  if (!_yf) {
+    // webpackIgnore tells webpack to skip bundling this — loads at Node runtime
+    const mod = await import(/* webpackIgnore: true */ 'yahoo-finance2');
+    _yf = mod.default ?? mod;
+  }
+  return _yf;
+}
+
 async function fetchOneTicker(
   ticker: string,
   config: TimeframeConfig,
 ): Promise<PriceBar[] | null> {
-  try {
-    const period2 = new Date();
-    const period1 = new Date();
-    period1.setDate(period1.getDate() - config.fetchDays);
+  const yf = await getYF();
+  const period2 = new Date();
+  const period1 = new Date();
+  period1.setDate(period1.getDate() - config.fetchDays);
 
-    const result = await yahooFinance.chart(ticker, {
+  try {
+    const result = await yf.chart(ticker, {
       period1,
       period2,
       interval: config.yfInterval,
@@ -25,28 +36,24 @@ async function fetchOneTicker(
 
     const quotes = result?.quotes ?? [];
     const bars: PriceBar[] = quotes
-      .filter(q => q.close != null && isFinite(q.close as number))
-      .map(q => ({
+      .filter((q: any) => q.close != null && isFinite(q.close))
+      .map((q: any) => ({
         date: new Date(q.date).toISOString(),
         close: q.close as number,
       }))
-      .sort((a, b) => a.date.localeCompare(b.date));
+      .sort((a: PriceBar, b: PriceBar) => a.date.localeCompare(b.date));
 
     return bars.length > 1 ? bars : null;
   } catch (err) {
     console.error(`[fetchPrices] ${ticker} failed:`, err instanceof Error ? err.message : err);
-    // retry once after a short delay
     await sleep(600);
     try {
-      const period2 = new Date();
-      const period1 = new Date();
-      period1.setDate(period1.getDate() - config.fetchDays);
-      const result = await yahooFinance.chart(ticker, { period1, period2, interval: config.yfInterval });
+      const result = await yf.chart(ticker, { period1, period2, interval: config.yfInterval });
       const quotes = result?.quotes ?? [];
       const bars: PriceBar[] = quotes
-        .filter(q => q.close != null && isFinite(q.close as number))
-        .map(q => ({ date: new Date(q.date).toISOString(), close: q.close as number }))
-        .sort((a, b) => a.date.localeCompare(b.date));
+        .filter((q: any) => q.close != null && isFinite(q.close))
+        .map((q: any) => ({ date: new Date(q.date).toISOString(), close: q.close as number }))
+        .sort((a: PriceBar, b: PriceBar) => a.date.localeCompare(b.date));
       return bars.length > 1 ? bars : null;
     } catch (err2) {
       console.error(`[fetchPrices] ${ticker} retry failed:`, err2 instanceof Error ? err2.message : err2);
