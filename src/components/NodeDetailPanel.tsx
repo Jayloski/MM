@@ -1,114 +1,169 @@
 'use client';
 
-import type { CorrelationResponse } from '@/types';
+import type { CorrelationResponse, SessionName } from '@/types';
+import { ASSET_CLASS_COLORS, SUBGROUP_LABELS } from '@/lib/assets';
 
 interface Props {
-  ticker: string;
+  ticker: string | null;
   data: CorrelationResponse;
   onClose: () => void;
+  onCorrelationClick: (ticker: string) => void;
 }
 
-function rBar(r: number) {
-  const pct = Math.abs(r) * 100;
-  const color = r > 0 ? 'bg-blue-500' : 'bg-red-500';
-  return (
-    <div className="h-1.5 w-full rounded-full bg-surface-border">
-      <div className={`h-1.5 rounded-full ${color}`} style={{ width: `${pct}%` }} />
-    </div>
-  );
+const SESSION_STYLES: Record<SessionName, string> = {
+  'Asian':         'bg-purple-950 text-purple-300 border border-purple-700',
+  'European':      'bg-blue-950 text-blue-300 border border-blue-700',
+  'US':            'bg-green-950 text-green-300 border border-green-700',
+  'EU/US Overlap': 'bg-teal-950 text-teal-300 border border-teal-700',
+};
+
+function volColor(dailyMove: number): string {
+  if (dailyMove < 0.5) return 'text-green-400';
+  if (dailyMove < 1.5) return 'text-yellow-400';
+  return 'text-red-400';
 }
 
-function rColor(r: number) {
-  const abs = Math.abs(r);
-  if (abs >= 0.8) return r > 0 ? 'text-blue-300' : 'text-red-300';
-  if (abs >= 0.6) return r > 0 ? 'text-blue-400' : 'text-red-400';
-  return 'text-slate-400';
-}
-
-export default function NodeDetailPanel({ ticker, data, onClose }: Props) {
+function getTopCorrelations(ticker: string, data: CorrelationResponse) {
   const idx = data.tickers.indexOf(ticker);
-  if (idx === -1) return null;
+  if (idx === -1) return { positive: [], negative: [] };
+  const row = data.matrix[idx];
+  const sorted = data.tickers
+    .map((t, i) => ({ ticker: t, label: data.labels[t] ?? t, r: row[i] ?? NaN }))
+    .filter(x => x.ticker !== ticker && isFinite(x.r))
+    .sort((a, b) => b.r - a.r);
+  return {
+    positive: sorted.slice(0, 5),
+    negative: [...sorted].reverse().slice(0, 5),
+  };
+}
 
-  const label = data.labels[ticker] ?? ticker;
-  const assetClass = data.assetClasses[ticker];
-  const vol = data.volatility?.[ticker];
-
-  // Build sorted correlations with all other tickers
-  const corrs = data.tickers
-    .map((t, i) => ({ ticker: t, label: data.labels[t] ?? t, r: data.matrix[idx][i] }))
-    .filter(c => c.ticker !== ticker && c.r != null)
-    .sort((a, b) => Math.abs(b.r!) - Math.abs(a.r!)) as { ticker: string; label: string; r: number }[];
-
-  const strong = corrs.filter(c => Math.abs(c.r) >= 0.6);
-  const rest   = corrs.filter(c => Math.abs(c.r) < 0.6);
+export default function NodeDetailPanel({ ticker, data, onClose, onCorrelationClick }: Props) {
+  const isOpen = ticker !== null;
 
   return (
-    <div className="flex h-full flex-col">
-      {/* Header */}
-      <div className="flex items-start justify-between border-b border-surface-border px-4 py-3">
-        <div>
-          <div className="font-mono text-sm font-bold text-slate-100">{label}</div>
-          <div className="mt-0.5 font-mono text-[10px] uppercase tracking-wider text-slate-500">
-            {assetClass} · {ticker}
-          </div>
-          {vol != null && (
-            <div className="mt-1 font-mono text-xs text-amber-400">
-              σ {(vol * 100).toFixed(3)}%
-            </div>
-          )}
-        </div>
+    <div
+      className={`flex w-72 shrink-0 flex-col rounded-lg border border-surface-border bg-surface-raised transition-all duration-200 ${
+        isOpen ? 'opacity-100' : 'pointer-events-none opacity-0'
+      }`}
+    >
+      <div className="flex items-center justify-between border-b border-surface-border px-4 py-3">
+        <span className="truncate font-semibold text-white text-sm">
+          {ticker ? (data.labels[ticker] ?? ticker) : ''}
+        </span>
         <button
           onClick={onClose}
-          className="ml-4 shrink-0 rounded p-1 text-slate-500 hover:bg-surface-border hover:text-slate-300 transition-colors"
-          aria-label="Close"
+          className="ml-2 shrink-0 text-slate-500 transition-colors hover:text-white text-lg leading-none"
+          aria-label="Close panel"
         >
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
+          ×
         </button>
       </div>
 
-      {/* Body */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
-        {strong.length > 0 && (
-          <div>
-            <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-500">
-              Strong correlations · |r| ≥ 0.60
-            </div>
-            <div className="space-y-2.5">
-              {strong.map(c => (
-                <div key={c.ticker}>
-                  <div className="mb-1 flex items-center justify-between">
-                    <span className="font-mono text-xs text-slate-300">{c.label}</span>
-                    <span className={`font-mono text-xs font-bold ${rColor(c.r)}`}>
-                      {c.r > 0 ? '+' : ''}{c.r.toFixed(2)}
-                    </span>
-                  </div>
-                  {rBar(c.r)}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+      {ticker && (() => {
+        const assetClass = data.assetClasses[ticker];
+        const subGroup = data.subGroups[ticker];
+        const sessions = data.sessions?.[ticker] ?? [];
+        const vol = data.volatility?.[ticker];
+        const dailyMove = vol != null ? (vol / Math.sqrt(252)) * 100 : null;
+        const { positive, negative } = getTopCorrelations(ticker, data);
+        const classColor = ASSET_CLASS_COLORS[assetClass] ?? '#888';
 
-        {rest.length > 0 && (
-          <div>
-            <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-500">
-              Weak / uncorrelated
+        return (
+          <div className="flex-1 space-y-4 overflow-y-auto p-4">
+            {/* Metadata chips */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span
+                className="rounded px-2 py-0.5 text-xs font-medium"
+                style={{ backgroundColor: classColor + '22', color: classColor, border: `1px solid ${classColor}55` }}
+              >
+                {assetClass === 'futures' ? 'Futures' : 'Forex'}
+              </span>
+              <span className="rounded border border-slate-600 bg-slate-800 px-2 py-0.5 text-xs text-slate-300">
+                {SUBGROUP_LABELS[subGroup] ?? subGroup}
+              </span>
+              <span className="font-mono text-xs text-slate-500">{ticker}</span>
             </div>
-            <div className="space-y-2">
-              {rest.map(c => (
-                <div key={c.ticker} className="flex items-center justify-between">
-                  <span className="font-mono text-[11px] text-slate-500">{c.label}</span>
-                  <span className="font-mono text-[11px] text-slate-600">
-                    {c.r > 0 ? '+' : ''}{c.r.toFixed(2)}
-                  </span>
+
+            {/* Sessions */}
+            {sessions.length > 0 && (
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Active Sessions (CT)</p>
+                <div className="flex flex-wrap gap-2">
+                  {sessions.map((s, i) => (
+                    <div key={i} className={`rounded-md px-2.5 py-1.5 text-xs leading-tight ${SESSION_STYLES[s.name]}`}>
+                      <div className="font-semibold">{s.name}</div>
+                      <div className="mt-0.5 font-mono opacity-80">{s.startCT} – {s.endCT}</div>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </div>
+            )}
+
+            {/* Volatility */}
+            {dailyMove != null && (
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Volatility</p>
+                <div className="flex items-baseline gap-2">
+                  <span className={`text-2xl font-bold tabular-nums ${volColor(dailyMove)}`}>
+                    ~{dailyMove.toFixed(1)}%
+                  </span>
+                  <span className="text-xs text-slate-500">avg daily move</span>
+                </div>
+                <div className="mt-0.5 text-xs text-slate-600">
+                  {(vol! * 100).toFixed(3)}% stddev · {(vol! / Math.sqrt(252) * 100).toFixed(2)}% daily est
+                </div>
+              </div>
+            )}
+
+            {/* Top Correlations */}
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Top Correlations</p>
+
+              {positive.length > 0 && (
+                <div className="mb-3">
+                  <p className="mb-1.5 text-xs text-slate-600">Positive</p>
+                  <div className="space-y-1">
+                    {positive.map(({ ticker: t, label: lbl, r }) => (
+                      <button
+                        key={t}
+                        onClick={() => onCorrelationClick(t)}
+                        className="flex w-full items-center gap-2 rounded px-1 py-1 text-left hover:bg-white/5 transition-colors group"
+                      >
+                        <span className="w-20 truncate text-xs text-slate-400 group-hover:text-white transition-colors" title={lbl}>{lbl}</span>
+                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-700">
+                          <div className="h-full rounded-full bg-blue-400" style={{ width: `${Math.abs(r) * 100}%` }} />
+                        </div>
+                        <span className="w-10 text-right font-mono text-xs text-slate-300">+{r.toFixed(2)}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {negative.length > 0 && (
+                <div>
+                  <p className="mb-1.5 text-xs text-slate-600">Negative</p>
+                  <div className="space-y-1">
+                    {negative.map(({ ticker: t, label: lbl, r }) => (
+                      <button
+                        key={t}
+                        onClick={() => onCorrelationClick(t)}
+                        className="flex w-full items-center gap-2 rounded px-1 py-1 text-left hover:bg-white/5 transition-colors group"
+                      >
+                        <span className="w-20 truncate text-xs text-slate-400 group-hover:text-white transition-colors" title={lbl}>{lbl}</span>
+                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-700">
+                          <div className="h-full rounded-full bg-red-400" style={{ width: `${Math.abs(r) * 100}%` }} />
+                        </div>
+                        <span className="w-10 text-right font-mono text-xs text-slate-300">{r.toFixed(2)}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-        )}
-      </div>
+        );
+      })()}
     </div>
   );
 }

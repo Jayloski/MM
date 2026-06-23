@@ -105,13 +105,12 @@ export default function HomePage() {
                   />
                 </div>
                 {selectedTicker && (
-                  <div className="w-72 shrink-0 rounded-lg border border-surface-border bg-surface-raised">
-                    <NodeDetailPanel
-                      ticker={selectedTicker}
-                      data={data}
-                      onClose={() => setSelectedTicker(null)}
-                    />
-                  </div>
+                  <NodeDetailPanel
+                    ticker={selectedTicker}
+                    data={data}
+                    onClose={() => setSelectedTicker(null)}
+                    onCorrelationClick={setSelectedTicker}
+                  />
                 )}
               </div>
             </section>

@@ -72,6 +72,7 @@ export async function GET(req: NextRequest) {
   const labels: Record<string, string> = {};
   const assetClasses: Record<string, AssetClass> = {};
   const subGroups: Record<string, string> = {};
+  const sessions: Record<string, import('@/types').SessionInfo[]> = {};
 
   for (const ticker of availableTickers) {
     const asset = assetMap.get(ticker);
@@ -79,6 +80,7 @@ export async function GET(req: NextRequest) {
       labels[ticker] = asset.label;
       assetClasses[ticker] = asset.assetClass;
       subGroups[ticker] = asset.subGroup;
+      sessions[ticker] = asset.sessions;
     }
   }
 
@@ -92,6 +94,7 @@ export async function GET(req: NextRequest) {
     fetchedAt: new Date().toISOString(),
     skipped,
     volatility,
+    sessions,
   };
 
   return NextResponse.json(response);
