@@ -77,14 +77,29 @@ export interface DivergencePair {
   tickerB: string;
   labelA: string;
   labelB: string;
+  /** Aliases used by scanner UI */
+  aLabel: string;
+  bLabel: string;
   assetClassA: AssetClass;
   assetClassB: AssetClass;
   longR: number;
   spreadZ: number;
   cumA: number;
   cumB: number;
-  moverIsA: boolean;
+  /** null when signal is unclear (|cumA| ≈ |cumB|) */
+  moverIsA: boolean | null;
   continuationRate: number | null;
+  /** 1 - continuationRate (revert rate) */
+  followRate: number | null;
+  sampleCount: number;
+  momentumZA: number;
+  momentumZB: number;
+  /** The shortWindow used to compute this pair's cumulative returns */
+  shortWindow: number;
+  /** Last (context + shortWindow) returns for sparkline — A series */
+  recentReturnsA: number[];
+  /** Last (context + shortWindow) returns for sparkline — B series */
+  recentReturnsB: number[];
 }
 
 export interface DivergenceResponse {

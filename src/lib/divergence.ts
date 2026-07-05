@@ -26,6 +26,17 @@ function std(arr: number[], m: number): number {
   return Math.sqrt(arr.reduce((s, v) => s + (v - m) ** 2, 0) / arr.length);
 }
 
+/** Z-score of the last shortWindow sum relative to the rolling distribution */
+function momentumZ(returns: number[], shortWindow: number): number {
+  const rolls = rollingSum(returns, shortWindow);
+  if (rolls.length < 2) return 0;
+  const current = rolls[rolls.length - 1];
+  const history = rolls.slice(0, -1);
+  const m = mean(history);
+  const s = std(history, m);
+  return s === 0 ? 0 : (current - m) / s;
+}
+
 /** Align two return maps by pairwise shared dates, returning last N as arrays. */
 function alignPair(
   mapA: Map<string, number>,
@@ -53,6 +64,10 @@ export function computeDivergencePairs(
 ): DivergencePair[] {
   const valid = tickers.filter(t => returnMaps.has(t));
   const results: DivergencePair[] = [];
+
+  // Number of context bars shown in sparkline before the short window
+  const contextBars = Math.min(shortWindow * 4, 60);
+  const sparklineLen = contextBars + shortWindow;
 
   for (let i = 0; i < valid.length; i++) {
     const tA = valid[i];
@@ -87,8 +102,16 @@ export function computeDivergencePairs(
       const spreadZ = (cumA - cumB - spreadMean) / spreadStd;
       if (Math.abs(spreadZ) < 1.5) continue;
 
-      const moverIsA = Math.abs(cumA) > Math.abs(cumB);
+      // Mover is the leg with greater absolute cumulative move
+      // null if too close to call (within 20% of each other)
+      const absDiff = Math.abs(Math.abs(cumA) - Math.abs(cumB));
+      const maxAbs = Math.max(Math.abs(cumA), Math.abs(cumB));
+      const moverIsA: boolean | null =
+        maxAbs < 0.0001 ? null :
+        absDiff / maxAbs < 0.20 ? null :
+        Math.abs(cumA) > Math.abs(cumB);
 
+      // Historical continuation analysis
       const zSeries = spreadSeries.map(s => (s - spreadMean) / spreadStd);
       const checkableEnd = zSeries.length - shortWindow - 1;
       let instances = 0;
@@ -108,12 +131,29 @@ export function computeDivergencePairs(
         if (moverDir * flatMove > threshold) resolutions++;
       }
 
+      const hasStats = instances >= 5;
+      const continuationRate = hasStats ? resolutions / instances : null;
+      const followRate = hasStats ? (instances - resolutions) / instances : null;
+      const sampleCount = instances;
+
+      // Momentum z-scores for each leg
+      const momentumZA = momentumZ(sA, shortWindow);
+      const momentumZB = momentumZ(sB, shortWindow);
+
+      // Recent returns for sparkline (last sparklineLen bars)
+      const recentReturnsA = sA.slice(Math.max(0, n - sparklineLen));
+      const recentReturnsB = sB.slice(Math.max(0, n - sparklineLen));
+
       results.push({
         tickerA: tA, tickerB: tB,
         labelA: mA.label, labelB: mB.label,
+        aLabel: mA.label, bLabel: mB.label,
         assetClassA: mA.assetClass, assetClassB: mB.assetClass,
         longR, spreadZ, cumA, cumB, moverIsA,
-        continuationRate: instances >= 5 ? resolutions / instances : null,
+        continuationRate, followRate, sampleCount,
+        momentumZA, momentumZB,
+        shortWindow,
+        recentReturnsA, recentReturnsB,
       });
     }
   }
