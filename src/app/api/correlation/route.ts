@@ -7,7 +7,8 @@ import {
   buildCorrelationMatrix,
   computeVolatility,
 } from '@/lib/correlation';
-import type { Timeframe, AssetClass, CorrelationResponse } from '@/types';
+import { computeVolatilityProfile } from '@/lib/volatilityProfile';
+import type { Timeframe, AssetClass, CorrelationResponse, VolatilityProfile } from '@/types';
 
 export const revalidate = 300; // 5-minute ISR cache
 
@@ -73,6 +74,7 @@ export async function GET(req: NextRequest) {
   const assetClasses: Record<string, AssetClass> = {};
   const subGroups: Record<string, string> = {};
   const sessions: Record<string, import('@/types').SessionInfo[]> = {};
+  const volatilityProfiles: Record<string, VolatilityProfile> = {};
 
   for (const ticker of availableTickers) {
     const asset = assetMap.get(ticker);
@@ -81,6 +83,10 @@ export async function GET(req: NextRequest) {
       assetClasses[ticker] = asset.assetClass;
       subGroups[ticker] = asset.subGroup;
       sessions[ticker] = asset.sessions;
+    }
+    const bars = history[ticker];
+    if (bars) {
+      volatilityProfiles[ticker] = computeVolatilityProfile(ticker, bars);
     }
   }
 
@@ -95,6 +101,7 @@ export async function GET(req: NextRequest) {
     skipped,
     volatility,
     sessions,
+    volatilityProfiles,
   };
 
   return NextResponse.json(response);

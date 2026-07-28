@@ -7,7 +7,7 @@ import ThresholdSlider from '@/components/ThresholdSlider';
 import Navbar from '@/components/Navbar';
 import NodeDetailPanel from '@/components/NodeDetailPanel';
 import { useCorrelationData } from '@/hooks/useCorrelationData';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 const CorrelationHeatmap = dynamic(() => import('@/components/CorrelationHeatmap'), {
   ssr: false,
@@ -33,6 +33,8 @@ export default function HomePage() {
 
   const [threshold, setThreshold] = useState(0.35);
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const handleNodeClick = useCallback((ticker: string) => {
     setSelectedTicker(t => t === ticker ? null : ticker);
@@ -90,18 +92,45 @@ export default function HomePage() {
             </section>
 
             <section>
-              <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-500">
-                Correlation Web
-                <span className="ml-3 font-normal normal-case text-slate-600">
-                  — showing pairs with |r| ≥ {threshold.toFixed(2)} · click node for details · drag to reposition · scroll to zoom
-                </span>
-              </h2>
+              <div className="mb-3 flex items-center gap-4">
+                <h2 className="text-xs font-semibold uppercase tracking-widest text-slate-500">
+                  Correlation Web
+                  <span className="ml-3 font-normal normal-case text-slate-600">
+                    — showing pairs with |r| ≥ {threshold.toFixed(2)} · click node for details · drag to reposition · scroll to zoom
+                  </span>
+                </h2>
+                <div className="relative ml-auto flex items-center">
+                  <span className="pointer-events-none absolute left-2.5 text-slate-500">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                      <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398l3.85 3.85a1 1 0 0 0 1.415-1.415l-3.868-3.833zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+                    </svg>
+                  </span>
+                  <input
+                    ref={searchRef}
+                    type="text"
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    placeholder="Search instruments…"
+                    className="w-52 rounded border border-surface-border bg-surface-raised py-1.5 pl-7 pr-7 text-xs text-slate-200 placeholder-slate-600 outline-none focus:border-slate-500"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-2 text-slate-500 hover:text-white"
+                      aria-label="Clear search"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              </div>
               <div className="flex gap-4">
                 <div className={`transition-all duration-300 ${selectedTicker ? 'flex-1' : 'w-full'}`}>
                   <CorrelationWeb
                     data={data}
                     threshold={threshold}
                     onNodeClick={handleNodeClick}
+                    searchQuery={searchQuery}
                   />
                 </div>
                 {selectedTicker && (

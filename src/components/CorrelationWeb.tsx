@@ -9,11 +9,15 @@ interface Props {
   data: CorrelationResponse;
   threshold: number;
   onNodeClick?: (ticker: string) => void;
+  searchQuery?: string;
 }
 
-export default function CorrelationWeb({ data, threshold, onNodeClick }: Props) {
+export default function CorrelationWeb({ data, threshold, onNodeClick, searchQuery = '' }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const simRef = useRef<d3.Simulation<WebNode, WebLink> | null>(null);
+  const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
+  const containerRef = useRef<d3.Selection<SVGGElement, unknown, null, undefined> | null>(null);
+  const nodeElRef = useRef<d3.Selection<SVGGElement, WebNode, SVGGElement, unknown> | null>(null);
 
   useEffect(() => {
     if (!svgRef.current) return;
@@ -64,15 +68,16 @@ export default function CorrelationWeb({ data, threshold, onNodeClick }: Props) 
 
     // Container group for zoom/pan
     const container = svg.append('g');
+    containerRef.current = container;
 
-    svg.call(
-      d3
-        .zoom<SVGSVGElement, unknown>()
-        .scaleExtent([0.2, 4])
-        .on('zoom', event => {
-          container.attr('transform', event.transform);
-        }),
-    );
+    const zoomBehavior = d3
+      .zoom<SVGSVGElement, unknown>()
+      .scaleExtent([0.2, 4])
+      .on('zoom', event => {
+        container.attr('transform', event.transform);
+      });
+    zoomRef.current = zoomBehavior;
+    svg.call(zoomBehavior);
 
     // Links
     const linkEl = container
@@ -93,6 +98,8 @@ export default function CorrelationWeb({ data, threshold, onNodeClick }: Props) 
       .data(nodes)
       .join('g')
       .attr('cursor', 'grab');
+
+    nodeElRef.current = nodeEl;
 
     const radius = 16;
 
@@ -206,6 +213,49 @@ export default function CorrelationWeb({ data, threshold, onNodeClick }: Props) 
       simulation.stop();
     };
   }, [data, threshold, onNodeClick]);
+
+  // Search: highlight matching nodes, dim others, pan to first match
+  useEffect(() => {
+    const nodeEl = nodeElRef.current;
+    const svg = svgRef.current;
+    const zoom = zoomRef.current;
+    const container = containerRef.current;
+    if (!nodeEl || !svg || !zoom || !container) return;
+
+    const q = searchQuery.trim().toLowerCase();
+
+    if (!q) {
+      // Reset all nodes and links
+      nodeEl.attr('opacity', 1);
+      nodeEl.select('circle').attr('stroke', '#0f1117').attr('stroke-width', 1.5);
+      container.select('.links').selectAll('line').attr('opacity', 1);
+      return;
+    }
+
+    let firstMatch: WebNode | null = null;
+
+    nodeEl.each(function(d) {
+      const matches = d.label.toLowerCase().includes(q) || d.id.toLowerCase().includes(q);
+      if (matches && !firstMatch) firstMatch = d;
+      d3.select(this).attr('opacity', matches ? 1 : 0.12);
+      d3.select(this).select('circle')
+        .attr('stroke', matches ? '#ffffff' : '#0f1117')
+        .attr('stroke-width', matches ? 3 : 1.5);
+    });
+
+    container.select('.links').selectAll('line').attr('opacity', 0.08);
+
+    // Pan to first match
+    if (firstMatch) {
+      const node = firstMatch as WebNode;
+      const w = svg.clientWidth || 900;
+      const h = svg.clientHeight || 600;
+      d3.select(svg).transition().duration(400).call(
+        zoom.transform,
+        d3.zoomIdentity.translate(w / 2 - (node.x ?? 0), h / 2 - (node.y ?? 0)),
+      );
+    }
+  }, [searchQuery]);
 
   return (
     <div className="w-full rounded-lg border border-surface-border bg-surface-raised">

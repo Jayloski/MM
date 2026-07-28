@@ -52,6 +52,17 @@ export interface TimeframeConfig {
 export interface PriceBar {
   date: string; // ISO string
   close: number;
+  high?: number;
+  low?: number;
+}
+
+export interface VolatilityProfile {
+  /** Average range per UTC hour (index 0–23) */
+  hourly: number[];
+  /** Average range per UTC day-of-week (index 0=Sun … 6=Sat) */
+  daily: number[];
+  /** 'pips' for forex, 'pct' for futures */
+  unit: 'pips' | 'pct';
 }
 
 export type PriceHistory = Record<string, PriceBar[]>;
@@ -70,6 +81,7 @@ export interface CorrelationResponse {
   /** population stddev of % returns per ticker (fraction, multiply by 100 for %) */
   volatility: Record<string, number>;
   sessions: Record<string, SessionInfo[]>;
+  volatilityProfiles: Record<string, VolatilityProfile>;
 }
 
 export interface DivergencePair {

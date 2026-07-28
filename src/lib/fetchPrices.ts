@@ -51,6 +51,8 @@ async function fetchOneTicker(
 
       const timestamps: number[] = result.timestamp ?? [];
       const closes: (number | null)[] = result.indicators?.quote?.[0]?.close ?? [];
+      const highs:  (number | null)[] = result.indicators?.quote?.[0]?.high  ?? [];
+      const lows:   (number | null)[] = result.indicators?.quote?.[0]?.low   ?? [];
 
       // Normalize date keys so cross-market timestamps align:
       // daily → YYYY-MM-DD only; intraday → round down to interval boundary
@@ -67,7 +69,11 @@ async function fetchOneTicker(
         const date = config.yfInterval === '1d'
           ? new Date(ms).toISOString().slice(0, 10)         // YYYY-MM-DD
           : new Date(Math.floor(ms / intervalMs) * intervalMs).toISOString().slice(0, 16); // YYYY-MM-DDTHH:MM
-        bars.push({ date, close });
+        const bar: import('@/types').PriceBar = { date, close };
+        const h = highs[i]; const l = lows[i];
+        if (h != null && isFinite(h)) bar.high = h;
+        if (l != null && isFinite(l)) bar.low = l;
+        bars.push(bar);
       }
       bars.sort((a, b) => a.date.localeCompare(b.date));
       return bars.length > 1 ? bars : null;

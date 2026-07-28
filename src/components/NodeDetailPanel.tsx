@@ -1,6 +1,6 @@
 'use client';
 
-import type { CorrelationResponse, SessionName } from '@/types';
+import type { CorrelationResponse, SessionName, VolatilityProfile } from '@/types';
 import { ASSET_CLASS_COLORS, SUBGROUP_LABELS } from '@/lib/assets';
 
 interface Props {
@@ -17,11 +17,7 @@ const SESSION_STYLES: Record<SessionName, string> = {
   'EU/US Overlap': 'bg-teal-950 text-teal-300 border border-teal-700',
 };
 
-function volColor(dailyMove: number): string {
-  if (dailyMove < 0.5) return 'text-green-400';
-  if (dailyMove < 1.5) return 'text-yellow-400';
-  return 'text-red-400';
-}
+const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 function getTopCorrelations(ticker: string, data: CorrelationResponse) {
   const idx = data.tickers.indexOf(ticker);
@@ -35,6 +31,122 @@ function getTopCorrelations(ticker: string, data: CorrelationResponse) {
     positive: sorted.slice(0, 5),
     negative: [...sorted].reverse().slice(0, 5),
   };
+}
+
+function ProfileChart({
+  values,
+  labels,
+  activeIndex,
+  unit,
+  title,
+}: {
+  values: number[];
+  labels: string[];
+  activeIndex: number;
+  unit: string;
+  title: string;
+}) {
+  const max = Math.max(...values, 0.0001);
+  const H = 40;
+  const barW = Math.floor(220 / values.length) - 1;
+  const gap = Math.floor(220 / values.length) - barW;
+
+  // Only show a subset of x-axis labels to avoid crowding
+  const showLabel = (i: number) => {
+    if (values.length <= 7) return true;
+    return i === 0 || i === 6 || i === 12 || i === 18 || i === values.length - 1;
+  };
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{title}</span>
+        <span className="font-mono text-[10px] text-slate-600">{unit}</span>
+      </div>
+      <svg viewBox={`0 0 220 ${H + 14}`} className="w-full" style={{ height: H + 14 }}>
+        {values.map((v, i) => {
+          const barH = max > 0 ? Math.max((v / max) * H, v > 0 ? 1 : 0) : 0;
+          const x = i * (barW + gap);
+          const isActive = i === activeIndex;
+          return (
+            <g key={i}>
+              <rect
+                x={x}
+                y={H - barH}
+                width={barW}
+                height={barH}
+                fill={isActive ? '#f59e0b' : '#475569'}
+                opacity={v === 0 ? 0.3 : 1}
+              />
+              {showLabel(i) && (
+                <text
+                  x={x + barW / 2}
+                  y={H + 11}
+                  textAnchor="middle"
+                  fontSize={7}
+                  fill={isActive ? '#f59e0b' : '#64748b'}
+                >
+                  {labels[i]}
+                </text>
+              )}
+            </g>
+          );
+        })}
+        {/* Max value label */}
+        <text x={219} y={8} textAnchor="end" fontSize={7} fill="#475569">
+          {max >= 10 ? max.toFixed(1) : max.toFixed(2)}
+        </text>
+      </svg>
+    </div>
+  );
+}
+
+function VolatilityProfileSection({
+  profile,
+  vol,
+}: {
+  profile: VolatilityProfile;
+  vol: number | undefined;
+}) {
+  const now = new Date();
+  const currentHour = now.getUTCHours();
+  const currentDay  = now.getUTCDay();
+
+  const hourLabels = Array.from({ length: 24 }, (_, i) => String(i));
+  // Only show Mon–Fri (indices 1–5), skip Sun(0) and Sat(6)
+  const weekdayValues = profile.daily.slice(1, 6);
+  const weekdayLabels = DAY_LABELS.slice(1, 6);
+  const activeDay = currentDay >= 1 && currentDay <= 5 ? currentDay - 1 : -1;
+
+  const dailyMove = vol != null ? (vol / Math.sqrt(252)) * 100 : null;
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Volatility Profile</p>
+
+      <ProfileChart
+        values={profile.hourly}
+        labels={hourLabels}
+        activeIndex={currentHour}
+        unit={`${profile.unit}/hr (UTC)`}
+        title="Hour of Day"
+      />
+
+      <ProfileChart
+        values={weekdayValues}
+        labels={weekdayLabels}
+        activeIndex={activeDay}
+        unit={`${profile.unit}/day`}
+        title="Day of Week"
+      />
+
+      {dailyMove != null && (
+        <div className="font-mono text-[10px] text-slate-600">
+          ~{dailyMove.toFixed(2)}% avg daily move (annualised stddev basis)
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function NodeDetailPanel({ ticker, data, onClose, onCorrelationClick }: Props) {
@@ -64,7 +176,7 @@ export default function NodeDetailPanel({ ticker, data, onClose, onCorrelationCl
         const subGroup = data.subGroups[ticker];
         const sessions = data.sessions?.[ticker] ?? [];
         const vol = data.volatility?.[ticker];
-        const dailyMove = vol != null ? (vol / Math.sqrt(252)) * 100 : null;
+        const profile = data.volatilityProfiles?.[ticker];
         const { positive, negative } = getTopCorrelations(ticker, data);
         const classColor = ASSET_CLASS_COLORS[assetClass] ?? '#888';
 
@@ -99,20 +211,9 @@ export default function NodeDetailPanel({ ticker, data, onClose, onCorrelationCl
               </div>
             )}
 
-            {/* Volatility */}
-            {dailyMove != null && (
-              <div>
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Volatility</p>
-                <div className="flex items-baseline gap-2">
-                  <span className={`text-2xl font-bold tabular-nums ${volColor(dailyMove)}`}>
-                    ~{dailyMove.toFixed(1)}%
-                  </span>
-                  <span className="text-xs text-slate-500">avg daily move</span>
-                </div>
-                <div className="mt-0.5 text-xs text-slate-600">
-                  {(vol! * 100).toFixed(3)}% stddev · {(vol! / Math.sqrt(252) * 100).toFixed(2)}% daily est
-                </div>
-              </div>
+            {/* Volatility Profile */}
+            {profile && (
+              <VolatilityProfileSection profile={profile} vol={vol} />
             )}
 
             {/* Top Correlations */}
