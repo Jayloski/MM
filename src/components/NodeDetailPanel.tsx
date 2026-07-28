@@ -19,6 +19,26 @@ const SESSION_STYLES: Record<SessionName, string> = {
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+/** Returns nth occurrence of a weekday (0=Sun) in a given UTC month (0-indexed) */
+function nthWeekday(year: number, month: number, weekday: number, n: number): Date {
+  const d = new Date(Date.UTC(year, month, 1));
+  let count = 0;
+  while (d.getUTCMonth() === month) {
+    if (d.getUTCDay() === weekday) { count++; if (count === n) return d; }
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return d;
+}
+
+/** Central Time UTC offset in hours: −5 (CDT, summer) or −6 (CST, winter) */
+function getCTOffset(): number {
+  const now = new Date();
+  const y = now.getUTCFullYear();
+  const dstStart = nthWeekday(y, 2, 0, 2);  // 2nd Sunday March
+  const dstEnd   = nthWeekday(y, 10, 0, 1); // 1st Sunday November
+  return now >= dstStart && now < dstEnd ? -5 : -6;
+}
+
 function getTopCorrelations(ticker: string, data: CorrelationResponse) {
   const idx = data.tickers.indexOf(ticker);
   if (idx === -1) return { positive: [], negative: [] };
@@ -109,10 +129,17 @@ function VolatilityProfileSection({
   vol: number | undefined;
 }) {
   const now = new Date();
-  const currentHour = now.getUTCHours();
-  const currentDay  = now.getUTCDay();
+  const utcHour = now.getUTCHours();
+  const currentDay = now.getUTCDay();
+  const offset = getCTOffset(); // -5 (CDT) or -6 (CST)
 
+  // Rotate hourly array so index 0 = midnight CT
+  const ctHourly = Array.from({ length: 24 }, (_, i) =>
+    profile.hourly[((i - offset) + 24) % 24]
+  );
+  const currentCTHour = ((utcHour + offset) + 24) % 24;
   const hourLabels = Array.from({ length: 24 }, (_, i) => String(i));
+
   // Only show Mon–Fri (indices 1–5), skip Sun(0) and Sat(6)
   const weekdayValues = profile.daily.slice(1, 6);
   const weekdayLabels = DAY_LABELS.slice(1, 6);
@@ -125,10 +152,10 @@ function VolatilityProfileSection({
       <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Volatility Profile</p>
 
       <ProfileChart
-        values={profile.hourly}
+        values={ctHourly}
         labels={hourLabels}
-        activeIndex={currentHour}
-        unit={`${profile.unit}/hr (UTC)`}
+        activeIndex={currentCTHour}
+        unit={`${profile.unit}/hr (CT)`}
         title="Hour of Day"
       />
 
