@@ -9,10 +9,6 @@ import NodeDetailPanel from '@/components/NodeDetailPanel';
 import { useCorrelationData } from '@/hooks/useCorrelationData';
 import { useCallback, useRef, useState } from 'react';
 
-const CorrelationHeatmap = dynamic(() => import('@/components/CorrelationHeatmap'), {
-  ssr: false,
-  loading: () => <SkeletonBlock height={500} />,
-});
 const CorrelationWeb = dynamic(() => import('@/components/CorrelationWeb'), {
   ssr: false,
   loading: () => <SkeletonBlock height={600} />,
@@ -71,26 +67,12 @@ export default function HomePage() {
 
         {loading && !data && (
           <div className="space-y-4">
-            <SkeletonBlock height={500} />
             <SkeletonBlock height={600} />
           </div>
         )}
 
         {data && (
           <>
-            <section>
-              <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-500">
-                Correlation Heatmap
-              </h2>
-              <div
-                className={`rounded-lg border border-surface-border bg-surface-raised p-4 transition-opacity ${
-                  loading ? 'opacity-50' : 'opacity-100'
-                }`}
-              >
-                <CorrelationHeatmap data={data} />
-              </div>
-            </section>
-
             <section>
               <div className="mb-3 flex items-center gap-4">
                 <h2 className="text-xs font-semibold uppercase tracking-widest text-slate-500">
